@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# Reports — never commit real scan output
+iam_scan_report.json
+*_report.json
+*-policy.json
+
+# AWS credentials — should never be in a repo
+.aws/
+credentials
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env files
+.env
+.env.local
