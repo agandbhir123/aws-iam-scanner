@@ -4,112 +4,76 @@ import { useState, useRef, useCallback } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { Shield, RotateCcw, FileJson, ChevronDown, ChevronUp, Copy, Check, BookOpen, Upload as UploadIcon } from "lucide-react";
 
-// ── Sample data ───────────────────────────────────────────────────────────────
-const SAMPLE = {
-  generated_at: "2026-07-21T14:32:18.000Z",
-  account_id: "123456789012",
-  grade: "D",
-  score: 55,
-  summary: { total: 12, high: 2, medium: 5, low: 5 },
-  findings: [
-    {
-      check: "mfa_enforcement", severity: "HIGH",
-      resource_type: "User", resource_name: "deploy-admin",
-      resource_arn: "arn:aws:iam::123456789012:user/deploy-admin",
-      issues: ["User has console (password) access but NO MFA device enrolled"],
-      description: "User 'deploy-admin' can log into the AWS console with just a password. A single phished or leaked password grants full console access.",
-      remediation: "In IAM → user → Security credentials → Assign MFA device. Enforce via a policy that denies all actions unless aws:MultiFactorAuthPresent is true.",
-    },
-    {
-      check: "wildcard_policy", severity: "HIGH",
-      resource_type: "ManagedPolicy", resource_name: "DevFullAccess",
-      resource_arn: "arn:aws:iam::123456789012:policy/DevFullAccess",
-      issues: ["Action '*' on Resource '*' — full administrator access"],
-      description: "Managed policy 'DevFullAccess' grants full administrator access to all AWS services and resources.",
-      remediation: "Replace wildcard actions with only the specific permissions needed. Use IAM Access Analyzer to generate a least-privilege policy from CloudTrail activity.",
-    },
-    {
-      check: "unused_keys", severity: "MEDIUM",
-      resource_type: "AccessKey", resource_name: "ci-runner → key_1",
-      resource_arn: "arn:aws:iam::user/ci-runner/key_1",
-      issues: ["Key not rotated in 127 days (threshold: 90)"],
-      description: "Access key 1 for user 'ci-runner' has not been rotated in 127 days, exceeding the 90-day threshold.",
-      remediation: "Rotate the key if still needed, or deactivate and delete it. Prefer short-lived credentials (IAM roles, STS AssumeRole) over long-lived access keys.",
-    },
-    {
-      check: "unused_keys", severity: "MEDIUM",
-      resource_type: "AccessKey", resource_name: "deploy-user → key_2",
-      resource_arn: "arn:aws:iam::user/deploy-user/key_2",
-      issues: ["Key is active but has NEVER been used (45 days old)"],
-      description: "Access key 2 for user 'deploy-user' is active but has never been used in its 45-day lifetime.",
-      remediation: "Deactivate and delete this key immediately. A key that has never been used represents unnecessary standing access.",
-    },
-    {
-      check: "direct_attachment", severity: "MEDIUM",
-      resource_type: "User", resource_name: "analyst-jane",
-      resource_arn: "arn:aws:iam::123456789012:user/analyst-jane",
-      issues: ["Has 2 managed policies attached directly: S3ReadOnlyAccess, CloudWatchReadOnlyAccess"],
-      description: "User 'analyst-jane' has managed policies attached directly rather than via a group, making access harder to audit.",
-      remediation: "Create an IAM group with these policies, add the user to the group, then detach the policies from the user directly.",
-    },
-    {
-      check: "direct_attachment", severity: "MEDIUM",
-      resource_type: "User", resource_name: "developer-bob",
-      resource_arn: "arn:aws:iam::123456789012:user/developer-bob",
-      issues: ["Has 1 inline policy: DeveloperOverrides"],
-      description: "User 'developer-bob' has an inline policy which is invisible in the IAM policy list and harder to audit or reuse.",
-      remediation: "Convert this inline policy to a managed policy and attach via a group.",
-    },
-    {
-      check: "s3_public_access", severity: "MEDIUM",
-      resource_type: "S3/Bucket", resource_name: "my-app-assets-staging",
-      resource_arn: "arn:aws:s3:::my-app-assets-staging",
-      issues: ["Block public ACLs is disabled", "Ignore public ACLs is disabled"],
-      description: "Bucket 'my-app-assets-staging' has two Block Public Access settings disabled, leaving it vulnerable to accidental public exposure.",
-      remediation: "Enable all four Block Public Access settings on this bucket unless it intentionally serves public content.",
-    },
-    {
-      check: "mfa_enforcement", severity: "LOW",
-      resource_type: "User", resource_name: "ci-runner",
-      resource_arn: "arn:aws:iam::123456789012:user/ci-runner",
-      issues: ["User has no MFA device enrolled (programmatic-only access)"],
-      description: "User 'ci-runner' has no MFA enrolled. While currently programmatic-only, adding a login profile later would be critical without MFA.",
-      remediation: "Prefer IAM roles over long-lived IAM users for programmatic access.",
-    },
-    {
-      check: "unused_role", severity: "LOW",
-      resource_type: "Role", resource_name: "LegacyLambdaRole",
-      resource_arn: "arn:aws:iam::123456789012:role/LegacyLambdaRole",
-      issues: ["Role not assumed in 142 days (threshold: 90)"],
-      description: "Role 'LegacyLambdaRole' has not been assumed in 142 days and may no longer be needed.",
-      remediation: "Confirm this role is still needed. If inactive, delete it to reduce your attack surface.",
-    },
-    {
-      check: "unused_role", severity: "LOW",
-      resource_type: "Role", resource_name: "OldCodeBuildRole",
-      resource_arn: "arn:aws:iam::123456789012:role/OldCodeBuildRole",
-      issues: ["Role has NEVER been assumed (67 days since creation)"],
-      description: "Role 'OldCodeBuildRole' has existed for 67 days but has never been assumed.",
-      remediation: "Verify this role is still needed. If not, delete it.",
-    },
-    {
-      check: "unused_role", severity: "LOW",
-      resource_type: "Role", resource_name: "DataPipelineRole",
-      resource_arn: "arn:aws:iam::123456789012:role/DataPipelineRole",
-      issues: ["Role not assumed in 203 days (threshold: 90)"],
-      description: "Role 'DataPipelineRole' has not been assumed in 203 days.",
-      remediation: "Confirm this role is still needed. If inactive, consider deleting it.",
-    },
-    {
-      check: "unused_role", severity: "LOW",
-      resource_type: "Role", resource_name: "BackupAutomationRole",
-      resource_arn: "arn:aws:iam::123456789012:role/BackupAutomationRole",
-      issues: ["Role not assumed in 118 days (threshold: 90)"],
-      description: "Role 'BackupAutomationRole' has not been assumed in 118 days.",
-      remediation: "Confirm this role is still needed. If inactive, consider deleting it.",
-    },
-  ],
-};
+// ── Demo scenarios ────────────────────────────────────────────────────────────
+const SCENARIOS = [
+  {
+    id: "critical",
+    label: "Startup chaos",
+    description: "What a freshly-created, poorly-configured account looks like",
+    grade: "F", score: 138,
+    summary: { total: 18, high: 9, medium: 5, low: 4 },
+    generated_at: "2026-07-21T09:14:03.000Z",
+    account_id: "847392015648",
+    findings: [
+      { check: "mfa_enforcement", severity: "HIGH", resource_type: "Root", resource_name: "root", resource_arn: "arn:aws:iam::root", issues: ["Root account has an active access key"], description: "The root account has an active access key. Root keys should never exist — use IAM users or roles instead.", remediation: "Delete root access keys immediately. Use IAM users or assume-role for all programmatic access." },
+      { check: "mfa_enforcement", severity: "HIGH", resource_type: "Root", resource_name: "root", resource_arn: "arn:aws:iam::root", issues: ["Root account does not have MFA enabled"], description: "The AWS root account has no MFA. Root account compromise is catastrophic — there is no recovery path.", remediation: "Enable MFA on the root account immediately using a hardware key or virtual MFA device." },
+      { check: "wildcard_policy", severity: "HIGH", resource_type: "User", resource_name: "founders → AdministratorAccess", resource_arn: "arn:aws:iam::847392015648:user/founders", issues: ["Has AWS managed policy AdministratorAccess directly attached — full admin access"], description: "User 'founders' has AdministratorAccess attached directly, granting full control over every AWS service.", remediation: "Remove AdministratorAccess. Create a least-privilege policy covering only what this user actually needs." },
+      { check: "wildcard_policy", severity: "HIGH", resource_type: "ManagedPolicy", resource_name: "EveryonePolicy", resource_arn: "arn:aws:iam::847392015648:policy/EveryonePolicy", issues: ["Action '*' on Resource '*' — full administrator access"], description: "Managed policy 'EveryonePolicy' grants full administrator access to all AWS services and is attached to every developer.", remediation: "Delete this policy immediately and replace with per-role least-privilege policies." },
+      { check: "s3_public_access", severity: "HIGH", resource_type: "S3/Bucket", resource_name: "startup-user-uploads-prod", resource_arn: "arn:aws:s3:::startup-user-uploads-prod", issues: ["ACL grants FULL_CONTROL to AllUsers (public internet)"], description: "The production user uploads bucket is fully public — anyone on the internet can read, write, and delete files.", remediation: "Remove the public ACL grant immediately, enable Block Public Access, and audit what data was exposed." },
+      { check: "s3_public_access", severity: "HIGH", resource_type: "S3/Bucket", resource_name: "startup-db-backups", resource_arn: "arn:aws:s3:::startup-db-backups", issues: ["Bucket policy is flagged as public by AWS"], description: "The database backups bucket has a public bucket policy. Your database backups are accessible to anyone.", remediation: "Remove the public bucket policy immediately. Database backups must never be publicly accessible." },
+      { check: "mfa_enforcement", severity: "HIGH", resource_type: "User", resource_name: "alice", resource_arn: "arn:aws:iam::847392015648:user/alice", issues: ["User has console (password) access but NO MFA device enrolled"], description: "User 'alice' can log into the AWS console with just a password.", remediation: "Assign an MFA device immediately via IAM → user → Security credentials." },
+      { check: "mfa_enforcement", severity: "HIGH", resource_type: "User", resource_name: "bob", resource_arn: "arn:aws:iam::847392015648:user/bob", issues: ["User has console (password) access but NO MFA device enrolled"], description: "User 'bob' can log into the AWS console with just a password.", remediation: "Assign an MFA device immediately via IAM → user → Security credentials." },
+      { check: "trust_policy", severity: "HIGH", resource_type: "Role", resource_name: "CrossAccountDataRole", resource_arn: "arn:aws:iam::847392015648:role/CrossAccountDataRole", issues: ["Principal: '*' — ANY entity globally can assume this role"], description: "Role 'CrossAccountDataRole' has a trust policy that allows any entity in the world to assume it.", remediation: "Restrict the Principal to specific account IDs and add an ExternalId condition immediately." },
+      { check: "unused_keys", severity: "MEDIUM", resource_type: "AccessKey", resource_name: "alice → key_1", resource_arn: "arn:aws:iam::user/alice/key_1", issues: ["Key not rotated in 312 days (threshold: 90)"], description: "Access key 1 for alice has not been rotated in over 10 months.", remediation: "Rotate immediately. Set a calendar reminder to rotate every 90 days." },
+      { check: "unused_keys", severity: "MEDIUM", resource_type: "AccessKey", resource_name: "deploy-bot → key_1", resource_arn: "arn:aws:iam::user/deploy-bot/key_1", issues: ["Key not rotated in 287 days (threshold: 90)"], description: "The deploy bot's access key hasn't been rotated in nearly a year.", remediation: "Rotate the key and consider switching to short-lived credentials via IAM roles." },
+      { check: "unused_keys", severity: "MEDIUM", resource_type: "AccessKey", resource_name: "ci-bot → key_2", resource_arn: "arn:aws:iam::user/ci-bot/key_2", issues: ["Key is active but has NEVER been used (134 days old)"], description: "This key was created 134 days ago and has never been used.", remediation: "Delete this key. It represents unnecessary standing access with no business justification." },
+      { check: "direct_attachment", severity: "MEDIUM", resource_type: "User", resource_name: "charlie", resource_arn: "arn:aws:iam::847392015648:user/charlie", issues: ["Has 3 managed policies attached directly: S3FullAccess, RDSFullAccess, EC2FullAccess"], description: "User 'charlie' has three full-access policies attached directly — a major over-provisioning.", remediation: "Scope down to read-only where possible. Attach permissions via groups." },
+      { check: "direct_attachment", severity: "MEDIUM", resource_type: "User", resource_name: "dana", resource_arn: "arn:aws:iam::847392015648:user/dana", issues: ["Has 1 inline policy: InternalToolsAccess"], description: "User 'dana' has an inline policy that is invisible in the IAM policy list.", remediation: "Convert to a managed policy and attach via a group." },
+      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "OldLambdaRole", resource_arn: "arn:aws:iam::847392015648:role/OldLambdaRole", issues: ["Role not assumed in 198 days (threshold: 90)"], description: "This Lambda role has not been used in 198 days.", remediation: "Delete if no longer needed." },
+      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "DeprecatedPipelineRole", resource_arn: "arn:aws:iam::847392015648:role/DeprecatedPipelineRole", issues: ["Role has NEVER been assumed (88 days since creation)"], description: "This role was created 88 days ago and has never been used.", remediation: "Delete this role to reduce your attack surface." },
+      { check: "mfa_enforcement", severity: "LOW", resource_type: "User", resource_name: "deploy-bot", resource_arn: "arn:aws:iam::847392015648:user/deploy-bot", issues: ["User has no MFA device enrolled (programmatic-only access)"], description: "Programmatic user with no MFA enrolled.", remediation: "Prefer IAM roles with short-lived credentials over long-lived IAM users." },
+      { check: "mfa_enforcement", severity: "LOW", resource_type: "User", resource_name: "ci-bot", resource_arn: "arn:aws:iam::847392015648:user/ci-bot", issues: ["User has no MFA device enrolled (programmatic-only access)"], description: "Programmatic user with no MFA enrolled.", remediation: "Prefer IAM roles with short-lived credentials over long-lived IAM users." },
+    ],
+  },
+  {
+    id: "typical",
+    label: "Growing company",
+    description: "A real-world mid-stage account with common misconfigurations",
+    grade: "C", score: 37,
+    summary: { total: 11, high: 1, medium: 5, low: 5 },
+    generated_at: "2026-07-21T14:32:18.000Z",
+    account_id: "391024857364",
+    findings: [
+      { check: "mfa_enforcement", severity: "HIGH", resource_type: "User", resource_name: "deploy-admin", resource_arn: "arn:aws:iam::391024857364:user/deploy-admin", issues: ["User has console (password) access but NO MFA device enrolled"], description: "User 'deploy-admin' can log into the AWS console with just a password. A single phished or leaked password grants full console access.", remediation: "In IAM → user → Security credentials → Assign MFA device. Consider enforcing MFA via an IAM policy." },
+      { check: "unused_keys", severity: "MEDIUM", resource_type: "AccessKey", resource_name: "ci-runner → key_1", resource_arn: "arn:aws:iam::user/ci-runner/key_1", issues: ["Key not rotated in 127 days (threshold: 90)"], description: "Access key 1 for user 'ci-runner' has not been rotated in 127 days.", remediation: "Rotate the key or switch to IAM roles for CI/CD access." },
+      { check: "unused_keys", severity: "MEDIUM", resource_type: "AccessKey", resource_name: "deploy-user → key_2", resource_arn: "arn:aws:iam::user/deploy-user/key_2", issues: ["Key is active but has NEVER been used (45 days old)"], description: "This access key has been active for 45 days and has never been used.", remediation: "Deactivate and delete this key immediately." },
+      { check: "direct_attachment", severity: "MEDIUM", resource_type: "User", resource_name: "analyst-jane", resource_arn: "arn:aws:iam::391024857364:user/analyst-jane", issues: ["Has 2 managed policies attached directly: S3ReadOnlyAccess, CloudWatchReadOnlyAccess"], description: "User 'analyst-jane' has policies attached directly rather than via a group.", remediation: "Create a group, attach policies there, add the user, remove direct attachments." },
+      { check: "direct_attachment", severity: "MEDIUM", resource_type: "User", resource_name: "developer-bob", resource_arn: "arn:aws:iam::391024857364:user/developer-bob", issues: ["Has 1 inline policy: DeveloperOverrides"], description: "User 'developer-bob' has an inline policy that is harder to audit.", remediation: "Convert to a managed policy and attach via a group." },
+      { check: "s3_public_access", severity: "MEDIUM", resource_type: "S3/Bucket", resource_name: "my-app-assets-staging", resource_arn: "arn:aws:s3:::my-app-assets-staging", issues: ["Block public ACLs is disabled", "Ignore public ACLs is disabled"], description: "Staging assets bucket has Block Public Access settings disabled.", remediation: "Enable all four Block Public Access settings unless this bucket intentionally serves public content." },
+      { check: "mfa_enforcement", severity: "LOW", resource_type: "User", resource_name: "ci-runner", resource_arn: "arn:aws:iam::391024857364:user/ci-runner", issues: ["User has no MFA device enrolled (programmatic-only access)"], description: "Programmatic user with no MFA enrolled.", remediation: "Prefer IAM roles over long-lived IAM users for programmatic access." },
+      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "LegacyLambdaRole", resource_arn: "arn:aws:iam::391024857364:role/LegacyLambdaRole", issues: ["Role not assumed in 142 days (threshold: 90)"], description: "Role not used in 142 days.", remediation: "Confirm this role is still needed. If not, delete it." },
+      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "OldCodeBuildRole", resource_arn: "arn:aws:iam::391024857364:role/OldCodeBuildRole", issues: ["Role has NEVER been assumed (67 days since creation)"], description: "This role has never been assumed in 67 days.", remediation: "Verify this role is still needed. If not, delete it." },
+      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "DataPipelineRole", resource_arn: "arn:aws:iam::391024857364:role/DataPipelineRole", issues: ["Role not assumed in 203 days (threshold: 90)"], description: "Role not used in over 6 months.", remediation: "Delete if no longer in use." },
+      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "BackupAutomationRole", resource_arn: "arn:aws:iam::391024857364:role/BackupAutomationRole", issues: ["Role not assumed in 118 days (threshold: 90)"], description: "Role not used in 118 days.", remediation: "Confirm this role is still needed. If inactive, delete it." },
+    ],
+  },
+  {
+    id: "clean",
+    label: "Security-mature team",
+    description: "What a well-maintained account with good practices looks like",
+    grade: "B", score: 11,
+    summary: { total: 5, high: 0, medium: 1, low: 4 },
+    generated_at: "2026-07-21T08:00:44.000Z",
+    account_id: "502918374651",
+    findings: [
+      { check: "unused_keys", severity: "MEDIUM", resource_type: "AccessKey", resource_name: "legacy-script → key_1", resource_arn: "arn:aws:iam::user/legacy-script/key_1", issues: ["Key not rotated in 94 days (threshold: 90)"], description: "Access key 1 for legacy-script is 4 days past the rotation threshold — just barely.", remediation: "Rotate this key as part of your regular 90-day rotation schedule." },
+      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "OldMigrationRole", resource_arn: "arn:aws:iam::502918374651:role/OldMigrationRole", issues: ["Role not assumed in 96 days (threshold: 90)"], description: "This role was used for a one-time database migration and hasn't been needed since.", remediation: "Confirm the migration is complete and delete this role." },
+      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "StagingTestRole", resource_arn: "arn:aws:iam::502918374651:role/StagingTestRole", issues: ["Role not assumed in 112 days (threshold: 90)"], description: "Staging test role hasn't been used since last quarter.", remediation: "Check if staging tests are still active. Delete if not." },
+      { check: "mfa_enforcement", severity: "LOW", resource_type: "User", resource_name: "vendor-api-user", resource_arn: "arn:aws:iam::502918374651:user/vendor-api-user", issues: ["User has no MFA device enrolled (programmatic-only access)"], description: "External vendor's API user has no MFA. Consider migrating to cross-account role assumption.", remediation: "Work with the vendor to migrate from long-lived keys to cross-account role assumption." },
+      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "TempAnalyticsRole", resource_arn: "arn:aws:iam::502918374651:role/TempAnalyticsRole", issues: ["Role has NEVER been assumed (91 days since creation)"], description: "This role was created for an analytics project that was deprioritized before it launched.", remediation: "Delete this role since the project was cancelled." },
+    ],
+  },
+];
 
 // ── Tokens ────────────────────────────────────────────────────────────────────
 const C = {
@@ -335,8 +299,8 @@ function Guide({ onUpload }) {
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               {[
-                { os: "Mac", how: "Press ⌘ + Space, type "Terminal", hit Enter" },
-                { os: "Windows", how: "Press Windows key, type "PowerShell", hit Enter" },
+                { os: "Mac", how: "Press ⌘ + Space, type Terminal, press Enter" },
+                { os: "Windows", how: "Press the Windows key, type PowerShell, press Enter" },
               ].map(({ os, how }) => (
                 <div key={os} style={{ background: C.bg, borderRadius: 8, padding: "12px 14px", border: `1px solid ${C.border}` }}>
                   <p style={{ fontWeight: 700, fontSize: 13, color: C.text, margin: "0 0 4px" }}>{os}</p>
@@ -898,19 +862,62 @@ function Upload({ onLoad }) {
 
           <div style={{ display: "flex", alignItems: "center", gap: 16, margin: "24px 0", width: "100%", maxWidth: 440 }}>
             <div style={{ flex: 1, height: 1, background: C.border }} />
-            <span style={{ color: C.muted, fontSize: 11 }}>or try the demo</span>
+            <span style={{ color: C.muted, fontSize: 11 }}>or explore a demo</span>
             <div style={{ flex: 1, height: 1, background: C.border }} />
           </div>
 
-          <button
-            onClick={() => onLoad({ report: SAMPLE, isSample: true })}
-            style={{ background: C.white, color: C.sub, border: `1px solid ${C.border}`, borderRadius: 10, padding: "11px 32px", fontSize: 13, fontWeight: 600, cursor: "pointer", boxShadow: "0 1px 3px rgba(0,0,0,0.06)", width: "100%", maxWidth: 440 }}
-          >
-            View sample report →
-          </button>
-          <p style={{ color: C.muted, fontSize: 11, marginTop: 8, textAlign: "center" }}>
-            Explore with 12 realistic pre-built findings — no AWS account needed
-          </p>
+          <div style={{ width: "100%", maxWidth: 440, display: "flex", flexDirection: "column", gap: 8 }}>
+            <p style={{ color: C.muted, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 4px", fontWeight: 700 }}>
+              Pick a scenario
+            </p>
+            {SCENARIOS.map(s => {
+              const g = GRADE[s.grade] || GRADE.F;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => onLoad({ report: s, isSample: true })}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 14,
+                    background: C.white,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 12,
+                    padding: "12px 16px",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    transition: "border-color 0.15s, box-shadow 0.15s",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = g.hex; e.currentTarget.style.boxShadow = `0 0 0 3px ${g.hex}15`; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.05)"; }}
+                >
+                  {/* Grade badge */}
+                  <div style={{
+                    width: 44, height: 44, borderRadius: 10, flexShrink: 0,
+                    background: `linear-gradient(135deg, ${g.soft}, ${g.hex}22)`,
+                    border: `1px solid ${g.hex}30`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    <span style={{ fontSize: 22, fontWeight: 900, color: g.hex, fontFamily: "system-ui", letterSpacing: "-0.03em" }}>
+                      {s.grade}
+                    </span>
+                  </div>
+                  {/* Text */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: C.text }}>{s.label}</p>
+                    <p style={{ margin: "2px 0 0", fontSize: 11, color: C.muted }}>{s.description}</p>
+                  </div>
+                  {/* Stats */}
+                  <div style={{ flexShrink: 0, textAlign: "right" }}>
+                    <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                      {s.summary.high > 0 && <span style={{ fontSize: 10, fontWeight: 700, color: SEV.HIGH.fg, background: SEV.HIGH.bg, border: `1px solid ${SEV.HIGH.border}`, borderRadius: 4, padding: "1px 6px", fontFamily: "monospace" }}>{s.summary.high} HIGH</span>}
+                      {s.summary.medium > 0 && <span style={{ fontSize: 10, fontWeight: 700, color: SEV.MEDIUM.fg, background: SEV.MEDIUM.bg, border: `1px solid ${SEV.MEDIUM.border}`, borderRadius: 4, padding: "1px 6px", fontFamily: "monospace" }}>{s.summary.medium} MED</span>}
+                    </div>
+                    <p style={{ margin: "4px 0 0", fontSize: 10, color: C.muted }}>{s.summary.total} findings</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
