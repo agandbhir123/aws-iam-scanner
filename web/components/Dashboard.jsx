@@ -7,32 +7,29 @@ import { Shield, RotateCcw, FileJson, ChevronDown, ChevronUp, Copy, Check, BookO
 // ── Demo scenarios ────────────────────────────────────────────────────────────
 const SCENARIOS = [
   {
-    id: "critical",
-    label: "Startup chaos",
-    description: "What a freshly-created, poorly-configured account looks like",
-    grade: "F", score: 138,
-    summary: { total: 18, high: 9, medium: 5, low: 4 },
-    generated_at: "2026-07-21T09:14:03.000Z",
-    account_id: "847392015648",
+    id: "clean_a",
+    label: "Security best-in-class",
+    description: "A perfectly maintained account — zero findings across all 7 checks",
+    grade: "A", score: 0,
+    summary: { total: 0, high: 0, medium: 0, low: 0 },
+    generated_at: "2026-07-21T06:00:00.000Z",
+    account_id: "112233445566",
+    findings: [],
+  },
+  {
+    id: "clean_b",
+    label: "Security-mature team",
+    description: "Well-maintained with only minor housekeeping items remaining",
+    grade: "B", score: 11,
+    summary: { total: 5, high: 0, medium: 1, low: 4 },
+    generated_at: "2026-07-21T08:00:44.000Z",
+    account_id: "502918374651",
     findings: [
-      { check: "mfa_enforcement", severity: "HIGH", resource_type: "Root", resource_name: "root", resource_arn: "arn:aws:iam::root", issues: ["Root account has an active access key"], description: "The root account has an active access key. Root keys should never exist — use IAM users or roles instead.", remediation: "Delete root access keys immediately. Use IAM users or assume-role for all programmatic access." },
-      { check: "mfa_enforcement", severity: "HIGH", resource_type: "Root", resource_name: "root", resource_arn: "arn:aws:iam::root", issues: ["Root account does not have MFA enabled"], description: "The AWS root account has no MFA. Root account compromise is catastrophic — there is no recovery path.", remediation: "Enable MFA on the root account immediately using a hardware key or virtual MFA device." },
-      { check: "wildcard_policy", severity: "HIGH", resource_type: "User", resource_name: "founders → AdministratorAccess", resource_arn: "arn:aws:iam::847392015648:user/founders", issues: ["Has AWS managed policy AdministratorAccess directly attached — full admin access"], description: "User 'founders' has AdministratorAccess attached directly, granting full control over every AWS service.", remediation: "Remove AdministratorAccess. Create a least-privilege policy covering only what this user actually needs." },
-      { check: "wildcard_policy", severity: "HIGH", resource_type: "ManagedPolicy", resource_name: "EveryonePolicy", resource_arn: "arn:aws:iam::847392015648:policy/EveryonePolicy", issues: ["Action '*' on Resource '*' — full administrator access"], description: "Managed policy 'EveryonePolicy' grants full administrator access to all AWS services and is attached to every developer.", remediation: "Delete this policy immediately and replace with per-role least-privilege policies." },
-      { check: "s3_public_access", severity: "HIGH", resource_type: "S3/Bucket", resource_name: "startup-user-uploads-prod", resource_arn: "arn:aws:s3:::startup-user-uploads-prod", issues: ["ACL grants FULL_CONTROL to AllUsers (public internet)"], description: "The production user uploads bucket is fully public — anyone on the internet can read, write, and delete files.", remediation: "Remove the public ACL grant immediately, enable Block Public Access, and audit what data was exposed." },
-      { check: "s3_public_access", severity: "HIGH", resource_type: "S3/Bucket", resource_name: "startup-db-backups", resource_arn: "arn:aws:s3:::startup-db-backups", issues: ["Bucket policy is flagged as public by AWS"], description: "The database backups bucket has a public bucket policy. Your database backups are accessible to anyone.", remediation: "Remove the public bucket policy immediately. Database backups must never be publicly accessible." },
-      { check: "mfa_enforcement", severity: "HIGH", resource_type: "User", resource_name: "alice", resource_arn: "arn:aws:iam::847392015648:user/alice", issues: ["User has console (password) access but NO MFA device enrolled"], description: "User 'alice' can log into the AWS console with just a password.", remediation: "Assign an MFA device immediately via IAM → user → Security credentials." },
-      { check: "mfa_enforcement", severity: "HIGH", resource_type: "User", resource_name: "bob", resource_arn: "arn:aws:iam::847392015648:user/bob", issues: ["User has console (password) access but NO MFA device enrolled"], description: "User 'bob' can log into the AWS console with just a password.", remediation: "Assign an MFA device immediately via IAM → user → Security credentials." },
-      { check: "trust_policy", severity: "HIGH", resource_type: "Role", resource_name: "CrossAccountDataRole", resource_arn: "arn:aws:iam::847392015648:role/CrossAccountDataRole", issues: ["Principal: '*' — ANY entity globally can assume this role"], description: "Role 'CrossAccountDataRole' has a trust policy that allows any entity in the world to assume it.", remediation: "Restrict the Principal to specific account IDs and add an ExternalId condition immediately." },
-      { check: "unused_keys", severity: "MEDIUM", resource_type: "AccessKey", resource_name: "alice → key_1", resource_arn: "arn:aws:iam::user/alice/key_1", issues: ["Key not rotated in 312 days (threshold: 90)"], description: "Access key 1 for alice has not been rotated in over 10 months.", remediation: "Rotate immediately. Set a calendar reminder to rotate every 90 days." },
-      { check: "unused_keys", severity: "MEDIUM", resource_type: "AccessKey", resource_name: "deploy-bot → key_1", resource_arn: "arn:aws:iam::user/deploy-bot/key_1", issues: ["Key not rotated in 287 days (threshold: 90)"], description: "The deploy bot's access key hasn't been rotated in nearly a year.", remediation: "Rotate the key and consider switching to short-lived credentials via IAM roles." },
-      { check: "unused_keys", severity: "MEDIUM", resource_type: "AccessKey", resource_name: "ci-bot → key_2", resource_arn: "arn:aws:iam::user/ci-bot/key_2", issues: ["Key is active but has NEVER been used (134 days old)"], description: "This key was created 134 days ago and has never been used.", remediation: "Delete this key. It represents unnecessary standing access with no business justification." },
-      { check: "direct_attachment", severity: "MEDIUM", resource_type: "User", resource_name: "charlie", resource_arn: "arn:aws:iam::847392015648:user/charlie", issues: ["Has 3 managed policies attached directly: S3FullAccess, RDSFullAccess, EC2FullAccess"], description: "User 'charlie' has three full-access policies attached directly — a major over-provisioning.", remediation: "Scope down to read-only where possible. Attach permissions via groups." },
-      { check: "direct_attachment", severity: "MEDIUM", resource_type: "User", resource_name: "dana", resource_arn: "arn:aws:iam::847392015648:user/dana", issues: ["Has 1 inline policy: InternalToolsAccess"], description: "User 'dana' has an inline policy that is invisible in the IAM policy list.", remediation: "Convert to a managed policy and attach via a group." },
-      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "OldLambdaRole", resource_arn: "arn:aws:iam::847392015648:role/OldLambdaRole", issues: ["Role not assumed in 198 days (threshold: 90)"], description: "This Lambda role has not been used in 198 days.", remediation: "Delete if no longer needed." },
-      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "DeprecatedPipelineRole", resource_arn: "arn:aws:iam::847392015648:role/DeprecatedPipelineRole", issues: ["Role has NEVER been assumed (88 days since creation)"], description: "This role was created 88 days ago and has never been used.", remediation: "Delete this role to reduce your attack surface." },
-      { check: "mfa_enforcement", severity: "LOW", resource_type: "User", resource_name: "deploy-bot", resource_arn: "arn:aws:iam::847392015648:user/deploy-bot", issues: ["User has no MFA device enrolled (programmatic-only access)"], description: "Programmatic user with no MFA enrolled.", remediation: "Prefer IAM roles with short-lived credentials over long-lived IAM users." },
-      { check: "mfa_enforcement", severity: "LOW", resource_type: "User", resource_name: "ci-bot", resource_arn: "arn:aws:iam::847392015648:user/ci-bot", issues: ["User has no MFA device enrolled (programmatic-only access)"], description: "Programmatic user with no MFA enrolled.", remediation: "Prefer IAM roles with short-lived credentials over long-lived IAM users." },
+      { check: "unused_keys", severity: "MEDIUM", resource_type: "AccessKey", resource_name: "legacy-script → key_1", resource_arn: "arn:aws:iam::user/legacy-script/key_1", issues: ["Key not rotated in 94 days (threshold: 90)"], description: "Access key 1 for legacy-script is 4 days past the rotation threshold.", remediation: "Rotate as part of your regular 90-day rotation schedule." },
+      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "OldMigrationRole", resource_arn: "arn:aws:iam::502918374651:role/OldMigrationRole", issues: ["Role not assumed in 96 days (threshold: 90)"], description: "Used for a one-time database migration and not needed since.", remediation: "Confirm migration is complete and delete this role." },
+      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "StagingTestRole", resource_arn: "arn:aws:iam::502918374651:role/StagingTestRole", issues: ["Role not assumed in 112 days (threshold: 90)"], description: "Staging test role not used since last quarter.", remediation: "Check if staging tests are still active. Delete if not." },
+      { check: "mfa_enforcement", severity: "LOW", resource_type: "User", resource_name: "vendor-api-user", resource_arn: "arn:aws:iam::502918374651:user/vendor-api-user", issues: ["User has no MFA device enrolled (programmatic-only access)"], description: "External vendor API user has no MFA. Consider migrating to cross-account role assumption.", remediation: "Work with the vendor to migrate from long-lived keys to cross-account role assumption." },
+      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "TempAnalyticsRole", resource_arn: "arn:aws:iam::502918374651:role/TempAnalyticsRole", issues: ["Role has NEVER been assumed (91 days since creation)"], description: "Created for an analytics project that was deprioritized before launch.", remediation: "Delete this role since the project was cancelled." },
     ],
   },
   {
@@ -44,33 +41,69 @@ const SCENARIOS = [
     generated_at: "2026-07-21T14:32:18.000Z",
     account_id: "391024857364",
     findings: [
-      { check: "mfa_enforcement", severity: "HIGH", resource_type: "User", resource_name: "deploy-admin", resource_arn: "arn:aws:iam::391024857364:user/deploy-admin", issues: ["User has console (password) access but NO MFA device enrolled"], description: "User 'deploy-admin' can log into the AWS console with just a password. A single phished or leaked password grants full console access.", remediation: "In IAM → user → Security credentials → Assign MFA device. Consider enforcing MFA via an IAM policy." },
+      { check: "mfa_enforcement", severity: "HIGH", resource_type: "User", resource_name: "deploy-admin", resource_arn: "arn:aws:iam::391024857364:user/deploy-admin", issues: ["User has console (password) access but NO MFA device enrolled"], description: "User 'deploy-admin' can log into the AWS console with just a password. A single phished or leaked password grants full console access.", remediation: "In IAM → user → Security credentials → Assign MFA device." },
       { check: "unused_keys", severity: "MEDIUM", resource_type: "AccessKey", resource_name: "ci-runner → key_1", resource_arn: "arn:aws:iam::user/ci-runner/key_1", issues: ["Key not rotated in 127 days (threshold: 90)"], description: "Access key 1 for user 'ci-runner' has not been rotated in 127 days.", remediation: "Rotate the key or switch to IAM roles for CI/CD access." },
       { check: "unused_keys", severity: "MEDIUM", resource_type: "AccessKey", resource_name: "deploy-user → key_2", resource_arn: "arn:aws:iam::user/deploy-user/key_2", issues: ["Key is active but has NEVER been used (45 days old)"], description: "This access key has been active for 45 days and has never been used.", remediation: "Deactivate and delete this key immediately." },
       { check: "direct_attachment", severity: "MEDIUM", resource_type: "User", resource_name: "analyst-jane", resource_arn: "arn:aws:iam::391024857364:user/analyst-jane", issues: ["Has 2 managed policies attached directly: S3ReadOnlyAccess, CloudWatchReadOnlyAccess"], description: "User 'analyst-jane' has policies attached directly rather than via a group.", remediation: "Create a group, attach policies there, add the user, remove direct attachments." },
       { check: "direct_attachment", severity: "MEDIUM", resource_type: "User", resource_name: "developer-bob", resource_arn: "arn:aws:iam::391024857364:user/developer-bob", issues: ["Has 1 inline policy: DeveloperOverrides"], description: "User 'developer-bob' has an inline policy that is harder to audit.", remediation: "Convert to a managed policy and attach via a group." },
-      { check: "s3_public_access", severity: "MEDIUM", resource_type: "S3/Bucket", resource_name: "my-app-assets-staging", resource_arn: "arn:aws:s3:::my-app-assets-staging", issues: ["Block public ACLs is disabled", "Ignore public ACLs is disabled"], description: "Staging assets bucket has Block Public Access settings disabled.", remediation: "Enable all four Block Public Access settings unless this bucket intentionally serves public content." },
+      { check: "s3_public_access", severity: "MEDIUM", resource_type: "S3/Bucket", resource_name: "my-app-assets-staging", resource_arn: "arn:aws:s3:::my-app-assets-staging", issues: ["Block public ACLs is disabled", "Ignore public ACLs is disabled"], description: "Staging assets bucket has Block Public Access settings disabled.", remediation: "Enable all four Block Public Access settings unless intentionally public." },
       { check: "mfa_enforcement", severity: "LOW", resource_type: "User", resource_name: "ci-runner", resource_arn: "arn:aws:iam::391024857364:user/ci-runner", issues: ["User has no MFA device enrolled (programmatic-only access)"], description: "Programmatic user with no MFA enrolled.", remediation: "Prefer IAM roles over long-lived IAM users for programmatic access." },
-      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "LegacyLambdaRole", resource_arn: "arn:aws:iam::391024857364:role/LegacyLambdaRole", issues: ["Role not assumed in 142 days (threshold: 90)"], description: "Role not used in 142 days.", remediation: "Confirm this role is still needed. If not, delete it." },
-      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "OldCodeBuildRole", resource_arn: "arn:aws:iam::391024857364:role/OldCodeBuildRole", issues: ["Role has NEVER been assumed (67 days since creation)"], description: "This role has never been assumed in 67 days.", remediation: "Verify this role is still needed. If not, delete it." },
+      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "LegacyLambdaRole", resource_arn: "arn:aws:iam::391024857364:role/LegacyLambdaRole", issues: ["Role not assumed in 142 days (threshold: 90)"], description: "Role not used in 142 days.", remediation: "Confirm still needed. If not, delete it." },
+      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "OldCodeBuildRole", resource_arn: "arn:aws:iam::391024857364:role/OldCodeBuildRole", issues: ["Role has NEVER been assumed (67 days since creation)"], description: "This role has never been assumed in 67 days.", remediation: "Verify still needed. If not, delete it." },
       { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "DataPipelineRole", resource_arn: "arn:aws:iam::391024857364:role/DataPipelineRole", issues: ["Role not assumed in 203 days (threshold: 90)"], description: "Role not used in over 6 months.", remediation: "Delete if no longer in use." },
-      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "BackupAutomationRole", resource_arn: "arn:aws:iam::391024857364:role/BackupAutomationRole", issues: ["Role not assumed in 118 days (threshold: 90)"], description: "Role not used in 118 days.", remediation: "Confirm this role is still needed. If inactive, delete it." },
+      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "BackupAutomationRole", resource_arn: "arn:aws:iam::391024857364:role/BackupAutomationRole", issues: ["Role not assumed in 118 days (threshold: 90)"], description: "Role not used in 118 days.", remediation: "Confirm still needed. If inactive, delete it." },
     ],
   },
   {
-    id: "clean",
-    label: "Security-mature team",
-    description: "What a well-maintained account with good practices looks like",
-    grade: "B", score: 11,
-    summary: { total: 5, high: 0, medium: 1, low: 4 },
-    generated_at: "2026-07-21T08:00:44.000Z",
-    account_id: "502918374651",
+    id: "legacy",
+    label: "Legacy enterprise",
+    description: "Years of technical debt — significant risk across multiple categories",
+    grade: "D", score: 71,
+    summary: { total: 12, high: 4, medium: 5, low: 3 },
+    generated_at: "2026-07-21T11:45:22.000Z",
+    account_id: "774401928350",
     findings: [
-      { check: "unused_keys", severity: "MEDIUM", resource_type: "AccessKey", resource_name: "legacy-script → key_1", resource_arn: "arn:aws:iam::user/legacy-script/key_1", issues: ["Key not rotated in 94 days (threshold: 90)"], description: "Access key 1 for legacy-script is 4 days past the rotation threshold — just barely.", remediation: "Rotate this key as part of your regular 90-day rotation schedule." },
-      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "OldMigrationRole", resource_arn: "arn:aws:iam::502918374651:role/OldMigrationRole", issues: ["Role not assumed in 96 days (threshold: 90)"], description: "This role was used for a one-time database migration and hasn't been needed since.", remediation: "Confirm the migration is complete and delete this role." },
-      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "StagingTestRole", resource_arn: "arn:aws:iam::502918374651:role/StagingTestRole", issues: ["Role not assumed in 112 days (threshold: 90)"], description: "Staging test role hasn't been used since last quarter.", remediation: "Check if staging tests are still active. Delete if not." },
-      { check: "mfa_enforcement", severity: "LOW", resource_type: "User", resource_name: "vendor-api-user", resource_arn: "arn:aws:iam::502918374651:user/vendor-api-user", issues: ["User has no MFA device enrolled (programmatic-only access)"], description: "External vendor's API user has no MFA. Consider migrating to cross-account role assumption.", remediation: "Work with the vendor to migrate from long-lived keys to cross-account role assumption." },
-      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "TempAnalyticsRole", resource_arn: "arn:aws:iam::502918374651:role/TempAnalyticsRole", issues: ["Role has NEVER been assumed (91 days since creation)"], description: "This role was created for an analytics project that was deprioritized before it launched.", remediation: "Delete this role since the project was cancelled." },
+      { check: "wildcard_policy", severity: "HIGH", resource_type: "ManagedPolicy", resource_name: "DevTeamAccess", resource_arn: "arn:aws:iam::774401928350:policy/DevTeamAccess", issues: ["Action '*' on Resource '*' — full administrator access"], description: "Policy 'DevTeamAccess' grants full admin and is attached to the entire dev team.", remediation: "Scope down to specific services each team member actually needs." },
+      { check: "wildcard_policy", severity: "HIGH", resource_type: "ManagedPolicy", resource_name: "LegacyAutomationPolicy", resource_arn: "arn:aws:iam::774401928350:policy/LegacyAutomationPolicy", issues: ["Service wildcard(s) ['s3:*', 'ec2:*', 'iam:*'] on Resource '*'"], description: "A legacy automation policy grants full S3, EC2, and IAM control to a service account.", remediation: "Replace with specific actions required by the automation scripts." },
+      { check: "trust_policy", severity: "HIGH", resource_type: "Role", resource_name: "VendorIntegrationRole", resource_arn: "arn:aws:iam::774401928350:role/VendorIntegrationRole", issues: ["Cross-account trust to arn:aws:iam::399012847650:root with no ExternalId condition (confused deputy vulnerability)"], description: "This cross-account role has no ExternalId condition, making it vulnerable to confused deputy attacks.", remediation: "Add an ExternalId condition to the trust policy and share the ID privately with the vendor." },
+      { check: "mfa_enforcement", severity: "HIGH", resource_type: "User", resource_name: "ops-manager", resource_arn: "arn:aws:iam::774401928350:user/ops-manager", issues: ["User has console (password) access but NO MFA device enrolled"], description: "The ops manager has console access with no MFA — a high-value target for attackers.", remediation: "Assign MFA immediately and enforce it via IAM policy." },
+      { check: "unused_keys", severity: "MEDIUM", resource_type: "AccessKey", resource_name: "automation-svc → key_1", resource_arn: "arn:aws:iam::user/automation-svc/key_1", issues: ["Key not rotated in 445 days (threshold: 90)"], description: "This service account key hasn't been rotated in over a year.", remediation: "Rotate immediately and set up automated rotation." },
+      { check: "unused_keys", severity: "MEDIUM", resource_type: "AccessKey", resource_name: "backup-svc → key_1", resource_arn: "arn:aws:iam::user/backup-svc/key_1", issues: ["Key not rotated in 312 days (threshold: 90)"], description: "The backup service key is over 10 months old.", remediation: "Rotate and consider switching to IAM roles." },
+      { check: "unused_keys", severity: "MEDIUM", resource_type: "AccessKey", resource_name: "monitoring → key_2", resource_arn: "arn:aws:iam::user/monitoring/key_2", issues: ["Key is active but has NEVER been used (67 days old)"], description: "A monitoring key that was created but never used.", remediation: "Delete this key. It was likely created by mistake." },
+      { check: "direct_attachment", severity: "MEDIUM", resource_type: "User", resource_name: "contractor-alex", resource_arn: "arn:aws:iam::774401928350:user/contractor-alex", issues: ["Has 4 managed policies attached directly: EC2FullAccess, S3FullAccess, RDSFullAccess, LambdaFullAccess"], description: "A contractor has four full-access policies attached directly — massively over-provisioned.", remediation: "Scope down to exactly what the contractor needs. Set an expiry date on the access." },
+      { check: "s3_public_access", severity: "MEDIUM", resource_type: "S3/AccountBPA", resource_name: "Account-level Block Public Access", resource_arn: "arn:aws:s3:::*", issues: ["Block public bucket policies is disabled", "Restrict public buckets is disabled"], description: "Two of the four account-level Block Public Access settings are disabled.", remediation: "Enable all four settings in S3 → Block Public Access (account settings)." },
+      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "DecommissionedAppRole", resource_arn: "arn:aws:iam::774401928350:role/DecommissionedAppRole", issues: ["Role not assumed in 380 days (threshold: 90)"], description: "This role belongs to an application that was decommissioned over a year ago.", remediation: "Delete immediately. This role has no business purpose." },
+      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "TestEnvironmentRole", resource_arn: "arn:aws:iam::774401928350:role/TestEnvironmentRole", issues: ["Role not assumed in 215 days (threshold: 90)"], description: "Test environment role that hasn't been touched since Q4 last year.", remediation: "Check if the test environment still exists. Delete if not." },
+      { check: "mfa_enforcement", severity: "LOW", resource_type: "User", resource_name: "automation-svc", resource_arn: "arn:aws:iam::774401928350:user/automation-svc", issues: ["User has no MFA device enrolled (programmatic-only access)"], description: "Programmatic service account with no MFA.", remediation: "Migrate to IAM roles for service-to-service authentication." },
+    ],
+  },
+  {
+    id: "critical",
+    label: "Startup chaos",
+    description: "What a freshly-created, poorly-configured account looks like",
+    grade: "F", score: 138,
+    summary: { total: 18, high: 9, medium: 5, low: 4 },
+    generated_at: "2026-07-21T09:14:03.000Z",
+    account_id: "847392015648",
+    findings: [
+      { check: "mfa_enforcement", severity: "HIGH", resource_type: "Root", resource_name: "root", resource_arn: "arn:aws:iam::root", issues: ["Root account has an active access key"], description: "The root account has an active access key. Root keys should never exist.", remediation: "Delete root access keys immediately. Use IAM users or assume-role for all programmatic access." },
+      { check: "mfa_enforcement", severity: "HIGH", resource_type: "Root", resource_name: "root", resource_arn: "arn:aws:iam::root", issues: ["Root account does not have MFA enabled"], description: "The AWS root account has no MFA. Root account compromise is catastrophic.", remediation: "Enable MFA on the root account immediately using a hardware key or virtual MFA device." },
+      { check: "wildcard_policy", severity: "HIGH", resource_type: "User", resource_name: "founders → AdministratorAccess", resource_arn: "arn:aws:iam::847392015648:user/founders", issues: ["Has AWS managed policy AdministratorAccess directly attached — full admin access"], description: "User 'founders' has AdministratorAccess attached directly, granting full control over every AWS service.", remediation: "Remove AdministratorAccess. Create a least-privilege policy covering only what this user actually needs." },
+      { check: "wildcard_policy", severity: "HIGH", resource_type: "ManagedPolicy", resource_name: "EveryonePolicy", resource_arn: "arn:aws:iam::847392015648:policy/EveryonePolicy", issues: ["Action '*' on Resource '*' — full administrator access"], description: "Managed policy 'EveryonePolicy' grants full administrator access and is attached to every developer.", remediation: "Delete this policy immediately and replace with per-role least-privilege policies." },
+      { check: "s3_public_access", severity: "HIGH", resource_type: "S3/Bucket", resource_name: "startup-user-uploads-prod", resource_arn: "arn:aws:s3:::startup-user-uploads-prod", issues: ["ACL grants FULL_CONTROL to AllUsers (public internet)"], description: "The production user uploads bucket is fully public — anyone can read, write, and delete files.", remediation: "Remove the public ACL grant immediately, enable Block Public Access, and audit what data was exposed." },
+      { check: "s3_public_access", severity: "HIGH", resource_type: "S3/Bucket", resource_name: "startup-db-backups", resource_arn: "arn:aws:s3:::startup-db-backups", issues: ["Bucket policy is flagged as public by AWS"], description: "The database backups bucket is publicly accessible.", remediation: "Remove the public bucket policy immediately. Database backups must never be publicly accessible." },
+      { check: "mfa_enforcement", severity: "HIGH", resource_type: "User", resource_name: "alice", resource_arn: "arn:aws:iam::847392015648:user/alice", issues: ["User has console (password) access but NO MFA device enrolled"], description: "User 'alice' can log into the AWS console with just a password.", remediation: "Assign an MFA device immediately via IAM → user → Security credentials." },
+      { check: "mfa_enforcement", severity: "HIGH", resource_type: "User", resource_name: "bob", resource_arn: "arn:aws:iam::847392015648:user/bob", issues: ["User has console (password) access but NO MFA device enrolled"], description: "User 'bob' can log into the AWS console with just a password.", remediation: "Assign an MFA device immediately via IAM → user → Security credentials." },
+      { check: "trust_policy", severity: "HIGH", resource_type: "Role", resource_name: "CrossAccountDataRole", resource_arn: "arn:aws:iam::847392015648:role/CrossAccountDataRole", issues: ["Principal: '*' — ANY entity globally can assume this role"], description: "Role 'CrossAccountDataRole' can be assumed by any entity in the world.", remediation: "Restrict the Principal to specific account IDs and add an ExternalId condition immediately." },
+      { check: "unused_keys", severity: "MEDIUM", resource_type: "AccessKey", resource_name: "alice → key_1", resource_arn: "arn:aws:iam::user/alice/key_1", issues: ["Key not rotated in 312 days (threshold: 90)"], description: "Alice's access key hasn't been rotated in over 10 months.", remediation: "Rotate immediately. Set a calendar reminder to rotate every 90 days." },
+      { check: "unused_keys", severity: "MEDIUM", resource_type: "AccessKey", resource_name: "deploy-bot → key_1", resource_arn: "arn:aws:iam::user/deploy-bot/key_1", issues: ["Key not rotated in 287 days (threshold: 90)"], description: "The deploy bot key hasn't been rotated in nearly a year.", remediation: "Rotate and consider switching to short-lived credentials via IAM roles." },
+      { check: "unused_keys", severity: "MEDIUM", resource_type: "AccessKey", resource_name: "ci-bot → key_2", resource_arn: "arn:aws:iam::user/ci-bot/key_2", issues: ["Key is active but has NEVER been used (134 days old)"], description: "This key was created 134 days ago and has never been used.", remediation: "Delete this key immediately." },
+      { check: "direct_attachment", severity: "MEDIUM", resource_type: "User", resource_name: "charlie", resource_arn: "arn:aws:iam::847392015648:user/charlie", issues: ["Has 3 managed policies attached directly: S3FullAccess, RDSFullAccess, EC2FullAccess"], description: "User 'charlie' has three full-access policies attached directly.", remediation: "Scope down to read-only where possible. Attach via groups." },
+      { check: "direct_attachment", severity: "MEDIUM", resource_type: "User", resource_name: "dana", resource_arn: "arn:aws:iam::847392015648:user/dana", issues: ["Has 1 inline policy: InternalToolsAccess"], description: "User 'dana' has an inline policy that is invisible in the IAM policy list.", remediation: "Convert to a managed policy and attach via a group." },
+      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "OldLambdaRole", resource_arn: "arn:aws:iam::847392015648:role/OldLambdaRole", issues: ["Role not assumed in 198 days (threshold: 90)"], description: "This Lambda role has not been used in 198 days.", remediation: "Delete if no longer needed." },
+      { check: "unused_role", severity: "LOW", resource_type: "Role", resource_name: "DeprecatedPipelineRole", resource_arn: "arn:aws:iam::847392015648:role/DeprecatedPipelineRole", issues: ["Role has NEVER been assumed (88 days since creation)"], description: "Created 88 days ago and never used.", remediation: "Delete this role to reduce your attack surface." },
+      { check: "mfa_enforcement", severity: "LOW", resource_type: "User", resource_name: "deploy-bot", resource_arn: "arn:aws:iam::847392015648:user/deploy-bot", issues: ["User has no MFA device enrolled (programmatic-only access)"], description: "Programmatic user with no MFA enrolled.", remediation: "Prefer IAM roles with short-lived credentials over long-lived IAM users." },
+      { check: "mfa_enforcement", severity: "LOW", resource_type: "User", resource_name: "ci-bot", resource_arn: "arn:aws:iam::847392015648:user/ci-bot", issues: ["User has no MFA device enrolled (programmatic-only access)"], description: "Programmatic user with no MFA enrolled.", remediation: "Prefer IAM roles with short-lived credentials over long-lived IAM users." },
     ],
   },
 ];
@@ -443,7 +476,7 @@ $env:AWS_DEFAULT_REGION="us-east-1"`
               cursor: "pointer",
               boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
             }}>
-              <UploadIcon size={14} /> Upload my report
+              <UploadIcon size={14} /> Upload report
             </button>
           </Step>
 
@@ -725,6 +758,9 @@ function Upload({ onLoad }) {
   const [tab, setTab] = useState("upload");
   const [drag, setDrag] = useState(false);
   const [err, setErr]   = useState(null);
+  const [leftPct, setLeftPct] = useState(34);
+  const isDragging = useRef(false);
+  const containerRef = useRef();
   const ref = useRef();
 
   const handle = useCallback(file => {
@@ -741,6 +777,29 @@ function Upload({ onLoad }) {
     };
     r.readAsText(file);
   }, [onLoad]);
+
+  const onDividerMouseDown = useCallback(e => {
+    isDragging.current = true;
+    e.preventDefault();
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    const onMouseMove = e => {
+      if (!isDragging.current || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const pct = ((e.clientX - rect.left) / rect.width) * 100;
+      setLeftPct(Math.min(Math.max(pct, 22), 52));
+    };
+    const onMouseUp = () => {
+      isDragging.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    };
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  }, []);
 
   if (tab === "guide") return <Guide onUpload={() => setTab("upload")} />;
 
@@ -765,10 +824,10 @@ function Upload({ onLoad }) {
       </div>
 
       {/* Two-column body */}
-      <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+      <div ref={containerRef} style={{ flex: 1, display: "flex", minHeight: 0 }}>
 
         {/* Left — branding + what it checks */}
-        <div style={{ flex: "0 0 44%", background: C.white, borderRight: `1px solid ${C.border}`, padding: "60px 48px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        <div style={{ flex: `0 0 ${leftPct}%`, background: C.white, overflow: "auto", padding: "60px 40px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
             <Shield size={32} color={C.amber} />
             <div>
@@ -803,8 +862,28 @@ function Upload({ onLoad }) {
           </a>
         </div>
 
+        {/* Draggable divider */}
+        <div
+          onMouseDown={onDividerMouseDown}
+          style={{
+            width: 5, flexShrink: 0,
+            background: C.border,
+            cursor: "col-resize",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            transition: "background 0.15s",
+            position: "relative",
+            zIndex: 1,
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = C.amber}
+          onMouseLeave={e => e.currentTarget.style.background = C.border}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 3, pointerEvents: "none" }}>
+            {[0,1,2].map(i => <div key={i} style={{ width: 3, height: 3, borderRadius: "50%", background: C.muted }} />)}
+          </div>
+        </div>
+
         {/* Right — upload zone */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "60px 48px" }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 40px", overflow: "auto" }}>
 
           {/* Tab bar */}
           <div style={{ display: "flex", background: C.white, border: `1px solid ${C.border}`, borderRadius: 10, padding: 4, gap: 4, marginBottom: 28, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
