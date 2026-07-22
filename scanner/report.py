@@ -46,7 +46,8 @@ def generate_report(
     account_id: str,
 ) -> None:
     """Print CLI report and write JSON file."""
-    score = _compute_score(findings)
+    risk_score = _compute_score(findings)
+    score      = _compute_rating(risk_score)
     grade, grade_color, grade_desc = _compute_grade(score)
 
     high = sum(1 for f in findings if f["severity"] == "HIGH")
@@ -58,7 +59,7 @@ def generate_report(
     grade_text.append(f"  Grade: ", style="bold white")
     grade_text.append(f"{grade}  ", style=f"bold {grade_color}")
     grade_text.append(f"({grade_desc})\n", style="dim")
-    grade_text.append(f"  Score: {score}  ", style="bold white")
+    grade_text.append(f"  Security rating: {score}/100  ", style="bold white")
     grade_text.append(
         f"[red]{high} HIGH[/red]  [yellow]{medium} MEDIUM[/yellow]  [blue]{low} LOW[/blue]  "
         f"({len(findings)} total)",
@@ -153,17 +154,23 @@ def generate_report(
 
 
 def _compute_score(findings: list[dict]) -> int:
+    """Compute raw risk score (internal only). Higher = more risk."""
     return sum(SEVERITY_WEIGHTS.get(f["severity"], 0) for f in findings)
 
 
-def _compute_grade(score: int) -> tuple[str, str, str]:
-    if score == 0:
+def _compute_rating(risk_score: int) -> int:
+    """Convert risk score to 1-100 security rating. Higher = safer."""
+    return max(1, min(100, 100 - risk_score))
+
+
+def _compute_grade(rating: int) -> tuple[str, str, str]:
+    if rating == 100:
         return "A", "green", "No issues found"
-    elif score <= 15:
+    elif rating >= 85:
         return "B", "green", "Minor issues"
-    elif score <= 40:
+    elif rating >= 60:
         return "C", "yellow", "Moderate risk"
-    elif score <= 80:
+    elif rating >= 20:
         return "D", "red", "Significant risk"
     else:
         return "F", "bold red", "Critical — immediate action needed"
