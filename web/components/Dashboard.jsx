@@ -148,35 +148,6 @@ const ST = {
   ],
 };
 
-const GRADE_LABELS = { A:"Excellent", B:"Good", C:"Moderate risk", D:"Significant risk", F:"Critical" };
-const GRADE_FINDING_HINT = { A:"0 findings", B:"minor issues", C:"moderate risk", D:"significant risk", F:"critical" };
-
-function buildScenario(grade, template) {
-  const acct = template.account_id;
-  const findings = (template.findings || []).map(id => {
-    const fp = FP[id];
-    if (!fp) return null;
-    const clone = { ...fp };
-    clone.resource_arn = clone.resource_arn.replace(/ACCOUNT/g, acct);
-    return clone;
-  }).filter(Boolean);
-  const risk = findings.reduce((s, f2) => s + (SW[f2.severity] || 0), 0);
-  const score = Math.max(1, Math.min(100, 100 - risk));
-  const summary = {
-    total: findings.length,
-    high: findings.filter(f2 => f2.severity === "HIGH").length,
-    medium: findings.filter(f2 => f2.severity === "MEDIUM").length,
-    low: findings.filter(f2 => f2.severity === "LOW").length,
-  };
-  return { ...template, grade, score, summary, findings, generated_at: null };
-}
-
-function getRandomScenario(grade) {
-  const templates = ST[grade];
-  const template = templates[Math.floor(Math.random() * templates.length)];
-  return buildScenario(grade, template);
-}
-
 // ── Scenario helpers ──────────────────────────────────────────────────────────
 const SW = { HIGH:10, MEDIUM:5, LOW:2 };
 
