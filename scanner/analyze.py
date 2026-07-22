@@ -135,7 +135,12 @@ examples:
         f"  [white]CloudTrail events scanned:[/white]  [bold]{result['event_count']}[/bold]\n"
         f"  [white]Denied events (excluded):[/white]   [dim]{result['denied_count']}[/dim]\n"
         f"  [white]Unique actions observed:[/white]    [bold cyan]{result['unique_actions']}[/bold cyan]\n"
-        f"  [white]Distinct services used:[/white]     [bold]{len(result['service_breakdown'])}[/bold]",
+        f"  [white]Distinct services used:[/white]     [bold]{len(result['service_breakdown'])}[/bold]\n"
+        f"\n"
+        f"  [white]Actions narrowed to specific ARNs:[/white]  [bold green]{result['narrowed_count']}[/bold green]  "
+        f"[dim]({result['narrowed_pct']}% of actions)[/dim]\n"
+        f"  [white]Actions falling back to Resource *:[/white] [bold yellow]{result['wildcarded_count']}[/bold yellow]  "
+        f"[dim](resource could not be determined)[/dim]",
         title=f"[bold cyan]Analysis — {args.entity}[/bold cyan]",
         border_style="cyan",
         expand=False,
