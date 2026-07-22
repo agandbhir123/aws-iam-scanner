@@ -2,40 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { Shield, FileJson, ChevronDown, ChevronUp, Copy, Check, BookOpen, Upload as UploadIcon, ArrowLeft, RefreshCw } from "lucide-react";
-
-// ── Tokens ────────────────────────────────────────────────────────────────────
-const C = {
-  bg: "#EEEEF2", white: "#FFFFFF", border: "#E0E1E8",
-  text: "#0F1017", sub: "#4A4F65", muted: "#9599B0", amber: "#C96800",
-};
-const GRADE = {
-  A: { hex:"#16A34A", soft:"#F0FDF4", label:"Excellent"        },
-  B: { hex:"#4D7C0F", soft:"#F7FEE7", label:"Good"             },
-  C: { hex:"#B45309", soft:"#FFFBEB", label:"Moderate risk"    },
-  D: { hex:"#C2410C", soft:"#FFF7ED", label:"Significant risk" },
-  F: { hex:"#B91C1C", soft:"#FEF2F2", label:"Critical"         },
-};
-const SEV = {
-  HIGH:   { fg:"#991B1B", bg:"#FEE2E2", border:"#FECACA" },
-  MEDIUM: { fg:"#92400E", bg:"#FEF3C7", border:"#FDE68A" },
-  LOW:    { fg:"#1E40AF", bg:"#DBEAFE", border:"#BFDBFE" },
-};
-const CHECK_LABELS = {
-  wildcard_policy:"Wildcard Policy", unused_keys:"Stale Keys",
-  direct_attachment:"Direct Attachment", trust_policy:"Trust Policy",
-  unused_role:"Unused Role", mfa_enforcement:"MFA Enforcement",
-  s3_public_access:"S3 Public Access",
-};
-const SW = { HIGH:10, MEDIUM:5, LOW:2 };
-const card = { background:"#FFFFFF", border:"1px solid #E0E1E8", borderRadius:12, boxShadow:"0 1px 4px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.02)" };
-
-// ── Finding helper ────────────────────────────────────────────────────────────
-const f = (check, severity, resource_type, resource_name, arn, issue, description, remediation) => ({
-  check, severity, resource_type, resource_name,
-  resource_arn: arn, issues:[issue], description, remediation,
-});
-const A = "ACCOUNT";
+import { Shield, FileJson, ChevronDown, ChevronUp, Copy, Check, BookOpen, Upload as UploadIcon, ArrowLeft, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 
 // ── Finding pool ──────────────────────────────────────────────────────────────
 const FP = {
@@ -210,38 +177,76 @@ function getRandomScenario(grade) {
   return buildScenario(grade, template);
 }
 
-// ── UI helpers ────────────────────────────────────────────────────────────────
-function SevTag({ s }) {
-  const sv = SEV[s];
-  return (
-    <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"3px 8px", borderRadius:6, background:sv.bg, color:sv.fg, border:`1px solid ${sv.border}`, fontSize:10, fontWeight:700, letterSpacing:"0.07em", fontFamily:"ui-monospace,monospace" }}>
-      <span style={{ width:5, height:5, borderRadius:1, background:sv.fg, flexShrink:0 }} />{s}
-    </span>
-  );
+// ── Scenario helpers ──────────────────────────────────────────────────────────
+const SW = { HIGH:10, MEDIUM:5, LOW:2 };
+
+function buildScenario(grade, template) {
+  const acct = template.account_id;
+  const findings = (template.findings || []).map(id => {
+    const fp = FP[id]; if (!fp) return null;
+    const c = { ...fp }; c.resource_arn = c.resource_arn.replace(/ACCOUNT/g, acct); return c;
+  }).filter(Boolean);
+  const risk = findings.reduce((s, f2) => s + (SW[f2.severity] || 0), 0);
+  const score = Math.max(1, Math.min(100, 100 - risk));
+  const summary = { total:findings.length, high:findings.filter(f2=>f2.severity==="HIGH").length, medium:findings.filter(f2=>f2.severity==="MEDIUM").length, low:findings.filter(f2=>f2.severity==="LOW").length };
+  return { ...template, grade, score, summary, findings, generated_at:null };
+}
+function getRandomScenario(grade) {
+  const t = ST[grade]; return buildScenario(grade, t[Math.floor(Math.random()*t.length)]);
 }
 
-function GradePanel({ grade, score, isSample }) {
-  const g = GRADE[grade] || GRADE.F;
+// ── Design tokens ─────────────────────────────────────────────────────────────
+const C = { bg:"#F3F4F8", white:"#FFFFFF", border:"#E3E5ED", text:"#0D0E14", sub:"#4D5168", muted:"#9299B0", amber:"#B86200" };
+const GRADE = {
+  A:{ hex:"#15803D", soft:"#F0FDF4", label:"Excellent"        },
+  B:{ hex:"#3D6B11", soft:"#F7FEE7", label:"Good"             },
+  C:{ hex:"#92400E", soft:"#FFFBEB", label:"Moderate risk"    },
+  D:{ hex:"#9A3412", soft:"#FFF7ED", label:"Significant risk" },
+  F:{ hex:"#991B1B", soft:"#FEF2F2", label:"Critical"         },
+};
+const SEV = {
+  HIGH:  { fg:"#991B1B", bg:"#FEE2E2", border:"#FECACA" },
+  MEDIUM:{ fg:"#92400E", bg:"#FEF3C7", border:"#FDE68A" },
+  LOW:   { fg:"#1E40AF", bg:"#DBEAFE", border:"#BFDBFE" },
+};
+const CHECK_LABELS = {
+  wildcard_policy:"Wildcard Policy", unused_keys:"Stale Keys", direct_attachment:"Direct Attachment",
+  trust_policy:"Trust Policy", unused_role:"Unused Role", mfa_enforcement:"MFA Enforcement", s3_public_access:"S3 Public Access",
+};
+const card = { background:"#FFFFFF", border:"1px solid rgba(0,0,0,0.08)", borderRadius:10, boxShadow:"0 1px 2px rgba(0,0,0,0.04),0 2px 6px rgba(0,0,0,0.04)" };
+
+const GRADE_HINT = { A:"Zero findings — perfectly clean", B:"Minor housekeeping items only", C:"Common misconfigurations", D:"Significant risk across categories", F:"Critical — immediate action required" };
+
+// ── Severity tag ──────────────────────────────────────────────────────────────
+function SevTag({ s }) {
+  const sv = SEV[s];
+  return <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"2px 7px", borderRadius:5, background:sv.bg, color:sv.fg, border:`1px solid ${sv.border}`, fontSize:10, fontWeight:700, letterSpacing:"0.06em", fontFamily:"ui-monospace,monospace" }}><span style={{ width:5,height:5,borderRadius:1,background:sv.fg,flexShrink:0 }}/>{s}</span>;
+}
+
+// ── Grade panel ───────────────────────────────────────────────────────────────
+function GradePanel({ grade, score }) {
+  const g = GRADE[grade]||GRADE.F;
   return (
-    <div style={{ ...card, minWidth:210, flexShrink:0, background:`linear-gradient(145deg,${g.soft} 0%,#ffffff 55%)`, border:`1px solid ${g.hex}28`, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"32px 24px", position:"relative", overflow:"hidden", userSelect:"none" }}>
-      <span style={{ position:"absolute", fontSize:200, fontWeight:900, color:g.hex, opacity:0.055, lineHeight:1, fontFamily:"system-ui", letterSpacing:"-0.05em", top:"50%", left:"50%", transform:"translate(-44%,-52%)", pointerEvents:"none" }}>{grade}</span>
-      <span style={{ fontSize:104, fontWeight:900, lineHeight:0.9, color:g.hex, fontFamily:"system-ui,-apple-system,sans-serif", letterSpacing:"-0.04em", position:"relative", zIndex:1 }}>{grade}</span>
-      <span style={{ color:g.hex, fontSize:10, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", marginTop:14, position:"relative", zIndex:1, background:`${g.hex}15`, padding:"3px 10px", borderRadius:99, border:`1px solid ${g.hex}25` }}>{g.label}</span>
-      <span style={{ color:C.muted, fontSize:10, fontFamily:"ui-monospace,monospace", marginTop:8, position:"relative", zIndex:1 }}>{score}/100</span>
+    <div style={{ ...card, minWidth:200, flexShrink:0, background:`linear-gradient(150deg,${g.soft} 0%,#fff 60%)`, border:`1px solid ${g.hex}20`, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"28px 22px", position:"relative", overflow:"hidden", userSelect:"none" }}>
+      <span style={{ position:"absolute", fontSize:190, fontWeight:900, color:g.hex, opacity:0.05, lineHeight:1, fontFamily:"system-ui", top:"48%", left:"50%", transform:"translate(-44%,-50%)", pointerEvents:"none" }}>{grade}</span>
+      <span style={{ fontSize:96, fontWeight:900, lineHeight:0.9, color:g.hex, fontFamily:"system-ui,-apple-system", letterSpacing:"-0.04em", position:"relative", zIndex:1 }}>{grade}</span>
+      <span style={{ color:g.hex, fontSize:10, fontWeight:700, letterSpacing:"0.09em", textTransform:"uppercase", marginTop:12, zIndex:1, background:`${g.hex}12`, padding:"2px 9px", borderRadius:99, border:`1px solid ${g.hex}22` }}>{g.label}</span>
+      <span style={{ color:C.muted, fontSize:10, fontFamily:"ui-monospace,monospace", marginTop:7, zIndex:1 }}>{score}/100</span>
     </div>
   );
 }
 
+// ── Stat cards ────────────────────────────────────────────────────────────────
 function StatCards({ summary }) {
   return (
-    <div style={{ display:"flex", flexDirection:"column", gap:10, flex:1, minWidth:220 }}>
-      {[["HIGH",summary.high,"Immediate action required"],["MEDIUM",summary.medium,"Should be addressed soon"],["LOW",summary.low,"Best-practice gaps"]].map(([k,n,note]) => {
-        const sv = SEV[k];
+    <div style={{ display:"flex", flexDirection:"column", gap:8, flex:1, minWidth:210 }}>
+      {[["HIGH",summary.high,"Immediate action"],["MEDIUM",summary.medium,"Address soon"],["LOW",summary.low,"Best-practice gap"]].map(([k,n,note]) => {
+        const sv=SEV[k];
         return (
-          <div key={k} style={{ ...card, padding:"14px 18px", display:"flex", alignItems:"center", gap:14, background:n>0?`linear-gradient(to right,${sv.bg},#ffffff 55%)`:"#fff", border:n>0?`1px solid ${sv.border}`:`1px solid ${C.border}` }}>
-            <span style={{ fontSize:40, fontWeight:900, color:n>0?sv.fg:C.muted, fontFamily:"ui-monospace,monospace", lineHeight:1, minWidth:52, textAlign:"right" }}>{n}</span>
-            <div style={{ borderLeft:`2px solid ${n>0?sv.border:C.border}`, paddingLeft:12 }}>
-              <p style={{ color:n>0?sv.fg:C.muted, fontSize:9, fontWeight:700, letterSpacing:"0.12em", margin:0 }}>{k}</p>
+          <div key={k} style={{ ...card, padding:"12px 16px", display:"flex", alignItems:"center", gap:13, background:n>0?`linear-gradient(to right,${sv.bg},#fff 55%)`:"#fff", border:n>0?`1px solid ${sv.border}`:`1px solid rgba(0,0,0,0.08)` }}>
+            <span style={{ fontSize:36, fontWeight:900, color:n>0?sv.fg:C.muted, fontFamily:"ui-monospace,monospace", lineHeight:1, minWidth:46, textAlign:"right" }}>{n}</span>
+            <div style={{ borderLeft:`2px solid ${n>0?sv.border:"#E3E5ED"}`, paddingLeft:12 }}>
+              <p style={{ color:n>0?sv.fg:C.muted, fontSize:9, fontWeight:700, letterSpacing:"0.11em", margin:0 }}>{k}</p>
               <p style={{ color:C.muted, fontSize:11, margin:"2px 0 0" }}>{note}</p>
             </div>
           </div>
@@ -251,61 +256,53 @@ function StatCards({ summary }) {
   );
 }
 
+// ── Breakdown chart ───────────────────────────────────────────────────────────
 function Breakdown({ findings }) {
-  const map = {};
-  findings.forEach(f2 => {
-    const name = CHECK_LABELS[f2.check] || f2.check;
-    if (!map[name]) map[name] = { name, HIGH:0, MEDIUM:0, LOW:0 };
-    map[name][f2.severity]++;
-  });
-  const data = Object.values(map).sort((a,b) => (b.HIGH*10+b.MEDIUM*5+b.LOW)-(a.HIGH*10+a.MEDIUM*5+a.LOW));
-  const Tip = ({ active, payload, label }) => {
-    if (!active||!payload?.length) return null;
-    return <div style={{ ...card, padding:"10px 14px" }}><p style={{ color:C.text, fontSize:12, fontWeight:600, marginBottom:6 }}>{label}</p>{payload.filter(p=>p.value>0).map(p=><p key={p.dataKey} style={{ color:SEV[p.dataKey]?.fg, fontSize:11, fontFamily:"monospace", margin:"2px 0" }}>{p.dataKey}: {p.value}</p>)}</div>;
-  };
+  const map={};
+  findings.forEach(f2=>{const name=CHECK_LABELS[f2.check]||f2.check;if(!map[name])map[name]={name,HIGH:0,MEDIUM:0,LOW:0};map[name][f2.severity]++;});
+  const data=Object.values(map).sort((a,b)=>(b.HIGH*10+b.MEDIUM*5+b.LOW)-(a.HIGH*10+a.MEDIUM*5+a.LOW));
+  const Tip=({active,payload,label})=>{if(!active||!payload?.length)return null;return <div style={{...card,padding:"9px 13px"}}><p style={{color:C.text,fontSize:12,fontWeight:600,marginBottom:5}}>{label}</p>{payload.filter(p=>p.value>0).map(p=><p key={p.dataKey} style={{color:SEV[p.dataKey]?.fg,fontSize:11,fontFamily:"monospace",margin:"2px 0"}}>{p.dataKey}: {p.value}</p>)}</div>;};
   return (
-    <div style={{ ...card, padding:"20px 22px" }}>
-      <p style={{ color:C.muted, fontSize:9, letterSpacing:"0.14em", textTransform:"uppercase", marginBottom:16 }}>Findings by check</p>
-      <ResponsiveContainer width="100%" height={Math.max(data.length*34+12,80)}>
-        <BarChart layout="vertical" data={data} margin={{ top:0, right:4, left:0, bottom:0 }}>
-          <XAxis type="number" allowDecimals={false} tick={{ fill:C.muted, fontSize:10, fontFamily:"monospace" }} axisLine={{ stroke:C.border }} tickLine={false} />
-          <YAxis type="category" dataKey="name" width={130} tick={{ fill:C.sub, fontSize:11 }} axisLine={false} tickLine={false} />
-          <Tooltip content={<Tip />} cursor={{ fill:"rgba(0,0,0,0.025)" }} />
-          <Bar dataKey="HIGH" stackId="s" fill="#FCA5A5" barSize={10} />
-          <Bar dataKey="MEDIUM" stackId="s" fill="#FCD34D" barSize={10} />
-          <Bar dataKey="LOW" stackId="s" fill="#93C5FD" barSize={10} radius={[0,3,3,0]} />
+    <div style={{...card,padding:"18px 20px"}}>
+      <p style={{color:C.muted,fontSize:9,letterSpacing:"0.13em",textTransform:"uppercase",marginBottom:14}}>Findings by check</p>
+      <ResponsiveContainer width="100%" height={Math.max(data.length*32+10,80)}>
+        <BarChart layout="vertical" data={data} margin={{top:0,right:4,left:0,bottom:0}}>
+          <XAxis type="number" allowDecimals={false} tick={{fill:C.muted,fontSize:10,fontFamily:"monospace"}} axisLine={{stroke:C.border}} tickLine={false}/>
+          <YAxis type="category" dataKey="name" width={128} tick={{fill:C.sub,fontSize:11}} axisLine={false} tickLine={false}/>
+          <Tooltip content={<Tip/>} cursor={{fill:"rgba(0,0,0,0.025)"}}/>
+          <Bar dataKey="HIGH" stackId="s" fill="#FCA5A5" barSize={9}/>
+          <Bar dataKey="MEDIUM" stackId="s" fill="#FCD34D" barSize={9}/>
+          <Bar dataKey="LOW" stackId="s" fill="#93C5FD" barSize={9} radius={[0,2,2,0]}/>
         </BarChart>
       </ResponsiveContainer>
-      <div style={{ display:"flex", gap:14, marginTop:12 }}>
+      <div style={{display:"flex",gap:14,marginTop:10}}>
         {[["HIGH","#FCA5A5"],["MEDIUM","#FCD34D"],["LOW","#93C5FD"]].map(([l,bg])=>(
-          <div key={l} style={{ display:"flex", alignItems:"center", gap:5 }}>
-            <span style={{ width:10, height:10, borderRadius:2, background:bg, display:"inline-block" }} />
-            <span style={{ fontSize:10, color:C.muted, fontFamily:"monospace" }}>{l}</span>
-          </div>
+          <div key={l} style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:9,height:9,borderRadius:2,background:bg,display:"inline-block"}}/><span style={{fontSize:10,color:C.muted,fontFamily:"monospace"}}>{l}</span></div>
         ))}
       </div>
     </div>
   );
 }
 
+// ── Finding row ───────────────────────────────────────────────────────────────
 function Row({ f2, i }) {
-  const [open, setOpen] = useState(false);
-  const sv = SEV[f2.severity];
+  const [open,setOpen]=useState(false);
+  const sv=SEV[f2.severity];
   return (
     <>
-      <tr onClick={() => setOpen(o=>!o)} style={{ background:open?sv.bg:i%2?"#FAFAFA":"#fff", cursor:"pointer", transition:"background 0.1s" }}>
-        <td style={{ padding:"10px 14px", whiteSpace:"nowrap" }}><SevTag s={f2.severity} /></td>
-        <td style={{ padding:"10px 8px", color:C.sub, fontSize:11, whiteSpace:"nowrap" }}>{CHECK_LABELS[f2.check]||f2.check}</td>
-        <td style={{ padding:"10px 8px", color:C.text, fontSize:12, fontFamily:"ui-monospace,monospace", whiteSpace:"nowrap" }}>{f2.resource_name}</td>
-        <td style={{ padding:"10px 8px 10px 0", color:C.sub, fontSize:12, maxWidth:300 }}><span style={{ display:"-webkit-box", WebkitLineClamp:1, WebkitBoxOrient:"vertical", overflow:"hidden" }}>{f2.issues[0]}</span></td>
-        <td style={{ padding:"10px 14px", textAlign:"right", color:C.muted }}>{open?<ChevronUp size={12}/>:<ChevronDown size={12}/>}</td>
+      <tr onClick={()=>setOpen(o=>!o)} style={{background:open?sv.bg:i%2?"#F9F9FB":"#fff",cursor:"pointer",transition:"background 0.1s"}}>
+        <td style={{padding:"9px 14px",whiteSpace:"nowrap"}}><SevTag s={f2.severity}/></td>
+        <td style={{padding:"9px 8px",color:C.sub,fontSize:11,whiteSpace:"nowrap"}}>{CHECK_LABELS[f2.check]||f2.check}</td>
+        <td style={{padding:"9px 8px",color:C.text,fontSize:12,fontFamily:"ui-monospace,monospace",whiteSpace:"nowrap"}}>{f2.resource_name}</td>
+        <td style={{padding:"9px 8px 9px 0",color:C.sub,fontSize:12,maxWidth:300}}><span style={{display:"-webkit-box",WebkitLineClamp:1,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{f2.issues[0]}</span></td>
+        <td style={{padding:"9px 14px",textAlign:"right",color:C.muted}}>{open?<ChevronUp size={12}/>:<ChevronDown size={12}/>}</td>
       </tr>
-      {open && (
-        <tr><td colSpan={5} style={{ padding:0 }}>
-          <div style={{ padding:"16px 18px 18px 18px", background:sv.bg, borderTop:`1px solid ${sv.border}`, borderBottom:`1px solid ${sv.border}`, display:"grid", gridTemplateColumns:"1fr 1fr", gap:"14px 28px" }}>
-            <div><p style={{ color:C.muted, fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:6 }}>What's wrong</p><p style={{ color:C.text, fontSize:12, lineHeight:1.7 }}>{f2.description}</p></div>
-            <div><p style={{ color:C.muted, fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:6 }}>How to fix it</p><p style={{ color:"#1D4ED8", fontSize:12, lineHeight:1.7 }}>{f2.remediation}</p></div>
-            <div style={{ gridColumn:"1/-1" }}><p style={{ color:C.muted, fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:4 }}>ARN</p><code style={{ color:C.sub, fontSize:10, fontFamily:"ui-monospace,monospace" }}>{f2.resource_arn}</code></div>
+      {open&&(
+        <tr><td colSpan={5} style={{padding:0}}>
+          <div style={{padding:"16px 18px 18px",background:sv.bg,borderTop:`1px solid ${sv.border}`,borderBottom:`1px solid ${sv.border}`,display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px 28px"}}>
+            <div><p style={{color:C.muted,fontSize:9,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:6}}>What's wrong</p><p style={{color:C.text,fontSize:12,lineHeight:1.7}}>{f2.description}</p></div>
+            <div><p style={{color:C.muted,fontSize:9,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:6}}>How to fix it</p><p style={{color:"#1D4ED8",fontSize:12,lineHeight:1.7}}>{f2.remediation}</p></div>
+            <div style={{gridColumn:"1/-1"}}><p style={{color:C.muted,fontSize:9,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:4}}>ARN</p><code style={{color:C.sub,fontSize:10,fontFamily:"ui-monospace,monospace"}}>{f2.resource_arn}</code></div>
           </div>
         </td></tr>
       )}
@@ -313,44 +310,32 @@ function Row({ f2, i }) {
   );
 }
 
+// ── Findings table ────────────────────────────────────────────────────────────
 function FindingsTable({ findings }) {
-  const [filter, setFilter] = useState("ALL");
-  const counts = { ALL:findings.length, HIGH:0, MEDIUM:0, LOW:0 };
-  findings.forEach(f2 => counts[f2.severity]++);
-  const ORDER = { HIGH:0, MEDIUM:1, LOW:2 };
-  const visible = [...(filter==="ALL"?findings:findings.filter(f2=>f2.severity===filter))].sort((a,b)=>ORDER[a.severity]-ORDER[b.severity]);
+  const [filter,setFilter]=useState("ALL");
+  const counts={ALL:findings.length,HIGH:0,MEDIUM:0,LOW:0};
+  findings.forEach(f2=>counts[f2.severity]++);
+  const ORDER={HIGH:0,MEDIUM:1,LOW:2};
+  const visible=[...(filter==="ALL"?findings:findings.filter(f2=>f2.severity===filter))].sort((a,b)=>ORDER[a.severity]-ORDER[b.severity]);
   return (
-    <div style={{ ...card, overflow:"hidden" }}>
-      <div style={{ display:"flex", alignItems:"center", borderBottom:`1px solid ${C.border}`, background:"#F8F8FA", padding:"0 6px" }}>
-        <span style={{ color:C.muted, fontSize:9, letterSpacing:"0.14em", textTransform:"uppercase", padding:"0 12px" }}>Findings</span>
-        <div style={{ display:"flex", marginLeft:"auto" }}>
-          {["ALL","HIGH","MEDIUM","LOW"].map(tab => {
-            const active = filter===tab;
-            const sv = SEV[tab];
-            const col = tab==="ALL"?C.amber:sv?.fg;
-            const bg2 = tab==="ALL"?"#FEF3C7":sv?.bg;
-            return (
-              <button key={tab} onClick={()=>setFilter(tab)} style={{ background:"transparent", border:"none", borderBottom:active?`2px solid ${col}`:"2px solid transparent", color:active?col:C.muted, padding:"10px 13px", cursor:"pointer", fontSize:10, fontWeight:700, letterSpacing:"0.08em", display:"flex", alignItems:"center", gap:6, fontFamily:"ui-monospace,monospace", transition:"color 0.12s" }}>
-                {tab}<span style={{ background:active?bg2:"#EEEFF3", color:active?col:C.muted, border:`1px solid ${active?(col+"40"):C.border}`, borderRadius:999, padding:"0 6px", fontSize:9 }}>{counts[tab]}</span>
-              </button>
-            );
+    <div style={{...card,overflow:"hidden"}}>
+      <div style={{display:"flex",alignItems:"center",borderBottom:`1px solid ${C.border}`,background:"#F8F9FB",padding:"0 6px"}}>
+        <span style={{color:C.muted,fontSize:9,letterSpacing:"0.14em",textTransform:"uppercase",padding:"0 12px"}}>Findings</span>
+        <div style={{display:"flex",marginLeft:"auto"}}>
+          {["ALL","HIGH","MEDIUM","LOW"].map(tab=>{
+            const active=filter===tab;const sv=SEV[tab];const col=tab==="ALL"?C.amber:sv?.fg;const bg2=tab==="ALL"?"#FEF3C7":sv?.bg;
+            return <button key={tab} onClick={()=>setFilter(tab)} style={{background:"transparent",border:"none",borderBottom:active?`2px solid ${col}`:"2px solid transparent",color:active?col:C.muted,padding:"10px 13px",cursor:"pointer",fontSize:10,fontWeight:700,letterSpacing:"0.08em",display:"flex",alignItems:"center",gap:6,fontFamily:"ui-monospace,monospace",transition:"color 0.12s"}}>{tab}<span style={{background:active?bg2:"#EEEEF3",color:active?col:C.muted,border:`1px solid ${active?(col+"40"):C.border}`,borderRadius:999,padding:"0 6px",fontSize:9}}>{counts[tab]}</span></button>;
           })}
         </div>
       </div>
-      <div style={{ overflowX:"auto" }}>
-        <table style={{ width:"100%", borderCollapse:"collapse" }}>
-          <thead>
-            <tr style={{ background:"#F8F8FA", borderBottom:`1px solid ${C.border}` }}>
-              {["Severity","Check","Resource","Issue",""].map((h,idx)=>(
-                <th key={idx} style={{ padding:"8px 14px", textAlign:"left", color:C.muted, fontSize:9, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
+      <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse"}}>
+          <thead><tr style={{background:"#F8F9FB",borderBottom:`1px solid ${C.border}`}}>
+            {["Severity","Check","Resource","Issue",""].map((h,idx)=><th key={idx} style={{padding:"7px 14px",textAlign:"left",color:C.muted,fontSize:9,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase"}}>{h}</th>)}
+          </tr></thead>
           <tbody>
-            {visible.length===0
-              ?<tr><td colSpan={5} style={{ padding:40, textAlign:"center", color:C.muted, fontSize:13 }}>No findings for this filter.</td></tr>
-              :visible.map((f2,i)=><Row key={`${f2.resource_arn}-${i}`} f2={f2} i={i}/>)
-            }
+            {visible.length===0?<tr><td colSpan={5} style={{padding:36,textAlign:"center",color:C.muted,fontSize:13}}>No findings for this filter.</td></tr>
+              :visible.map((f2,i)=><Row key={`${f2.resource_arn}-${i}`} f2={f2} i={i}/>)}
           </tbody>
         </table>
       </div>
@@ -358,184 +343,201 @@ function FindingsTable({ findings }) {
   );
 }
 
+// ── Scenario switcher ─────────────────────────────────────────────────────────
 function ScenarioSwitcher({ currentGrade, onSwitch }) {
   return (
-    <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-      <span style={{ color:C.muted, fontSize:9, letterSpacing:"0.1em", textTransform:"uppercase", marginRight:2 }}>Switch</span>
-      {["A","B","C","D","F"].map(g => {
-        const gc = GRADE[g];
-        const active = currentGrade===g;
-        return (
-          <button key={g} onClick={()=>!active&&onSwitch(g)} style={{ width:30, height:30, borderRadius:7, background:active?gc.hex:`${gc.hex}12`, color:active?"#fff":gc.hex, border:`1.5px solid ${active?gc.hex:gc.hex+"44"}`, fontWeight:800, fontSize:12, cursor:active?"default":"pointer", fontFamily:"system-ui", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center" }}>
-            {g}
-          </button>
-        );
+    <div style={{display:"flex",alignItems:"center",gap:5}}>
+      <span style={{color:C.muted,fontSize:9,letterSpacing:"0.1em",textTransform:"uppercase",marginRight:3}}>Switch</span>
+      {["A","B","C","D","F"].map(g=>{
+        const gc=GRADE[g];const active=currentGrade===g;
+        return <button key={g} onClick={()=>!active&&onSwitch(g)} style={{width:28,height:28,borderRadius:6,background:active?gc.hex:`${gc.hex}10`,color:active?"#fff":gc.hex,border:`1.5px solid ${active?gc.hex:gc.hex+"38"}`,fontWeight:800,fontSize:11,cursor:active?"default":"pointer",fontFamily:"system-ui",transition:"all 0.15s",display:"flex",alignItems:"center",justifyContent:"center"}}>{g}</button>;
       })}
-      <button onClick={()=>onSwitch(currentGrade)} title="Randomize within grade" style={{ width:30, height:30, borderRadius:7, background:C.bg, border:`1px solid ${C.border}`, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:C.muted, transition:"all 0.15s" }}>
-        <RefreshCw size={13}/>
+      <button onClick={()=>onSwitch(currentGrade)} title="Load a different profile for this grade" style={{width:28,height:28,borderRadius:6,background:C.bg,border:`1px solid ${C.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:C.muted}}>
+        <RefreshCw size={12}/>
       </button>
     </div>
   );
 }
 
-function CleanAccount({ label }) {
+// ── Clean account ─────────────────────────────────────────────────────────────
+function CleanAccount() {
   return (
-    <div style={{ ...card, padding:"48px 32px", textAlign:"center" }}>
-      <div style={{ width:64, height:64, borderRadius:"50%", background:"#F0FDF4", border:"2px solid #BBF7D0", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 16px", fontSize:28 }}>✓</div>
-      <h2 style={{ fontSize:20, fontWeight:800, color:"#15803D", margin:"0 0 8px" }}>No findings detected</h2>
-      <p style={{ color:C.muted, fontSize:14, maxWidth:400, margin:"0 auto", lineHeight:1.6 }}>All 7 security checks passed. This account follows AWS security best practices.</p>
+    <div style={{...card,padding:"52px 32px",textAlign:"center"}}>
+      <div style={{width:60,height:60,borderRadius:"50%",background:"#F0FDF4",border:"1.5px solid #BBF7D0",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}>
+        <span style={{fontSize:26,color:"#15803D"}}>✓</span>
+      </div>
+      <h2 style={{fontSize:19,fontWeight:800,color:"#15803D",margin:"0 0 8px"}}>No findings detected</h2>
+      <p style={{color:C.muted,fontSize:13,maxWidth:380,margin:"0 auto",lineHeight:1.6}}>All 7 security checks passed. This account follows AWS IAM security best practices.</p>
     </div>
   );
 }
 
+// ── Dashboard ─────────────────────────────────────────────────────────────────
 function Dashboard({ report, isSample, onReset, onSwitch }) {
-  const { grade, score, account_id, label, summary, findings } = report;
-  const g = GRADE[grade] || GRADE.F;
+  const { grade, score, account_id, label, description, summary, findings } = report;
+  const g = GRADE[grade]||GRADE.F;
   return (
-    <div style={{ minHeight:"100vh", background:C.bg, color:C.text, fontFamily:"system-ui,-apple-system,sans-serif" }}>
-      <div style={{ height:3, background:`linear-gradient(to right,${g.hex},${C.amber})` }} />
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"11px 24px", background:"#fff", borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, zIndex:10, boxShadow:"0 1px 3px rgba(0,0,0,0.06)" }}>
-        <button onClick={onReset} style={{ display:"flex", alignItems:"center", gap:8, background:"transparent", border:"none", cursor:"pointer", padding:"4px 0", color:C.text }}>
-          <Shield size={15} color={C.amber} />
-          <span style={{ fontWeight:700, fontSize:13, letterSpacing:"-0.01em" }}>AWS IAM Scanner</span>
-          {isSample && <span style={{ background:"#FEF3C7", color:C.amber, border:"1px solid #FDE68A", borderRadius:4, padding:"2px 7px", fontSize:8, fontWeight:700, letterSpacing:"0.12em" }}>DEMO</span>}
+    <div style={{minHeight:"100vh",background:C.bg,color:C.text,fontFamily:"system-ui,-apple-system,sans-serif"}}>
+      <div style={{height:3,background:`linear-gradient(to right,${g.hex},${C.amber})`}}/>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 22px",background:"#fff",borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,zIndex:10,boxShadow:"0 1px 3px rgba(0,0,0,0.05)"}}>
+        <button onClick={onReset} style={{display:"flex",alignItems:"center",gap:8,background:"transparent",border:"none",cursor:"pointer",padding:"3px 0",color:C.text}}>
+          <Shield size={15} color={C.amber}/>
+          <span style={{fontWeight:700,fontSize:13,letterSpacing:"-0.01em"}}>AWS IAM Scanner</span>
+          {isSample&&<span style={{background:"#FEF3C7",color:C.amber,border:"1px solid #FDE68A",borderRadius:4,padding:"2px 7px",fontSize:8,fontWeight:700,letterSpacing:"0.12em"}}>DEMO</span>}
         </button>
-        <div style={{ display:"flex", alignItems:"center", gap:16 }}>
-          {isSample && <ScenarioSwitcher currentGrade={grade} onSwitch={onSwitch} />}
-          <span style={{ color:C.muted, fontSize:11, fontFamily:"ui-monospace,monospace" }}>{account_id}</span>
-          <button onClick={onReset} style={{ display:"flex", alignItems:"center", gap:5, background:C.bg, border:`1px solid ${C.border}`, color:C.sub, borderRadius:7, padding:"5px 12px", cursor:"pointer", fontSize:11, fontWeight:500 }}>
-            <ArrowLeft size={11}/> Back
-          </button>
+        <div style={{display:"flex",alignItems:"center",gap:14}}>
+          {isSample&&<ScenarioSwitcher currentGrade={grade} onSwitch={onSwitch}/>}
+          <span style={{color:C.muted,fontSize:11,fontFamily:"ui-monospace,monospace"}}>{account_id}</span>
+          <button onClick={onReset} style={{display:"flex",alignItems:"center",gap:5,background:C.bg,border:`1px solid ${C.border}`,color:C.sub,borderRadius:6,padding:"5px 11px",cursor:"pointer",fontSize:11,fontWeight:500}}><ArrowLeft size={10}/> Back</button>
         </div>
       </div>
-      {isSample && label && (
-        <div style={{ background:`${g.hex}10`, borderBottom:`1px solid ${g.hex}20`, padding:"8px 24px", display:"flex", alignItems:"center", gap:10 }}>
-          <span style={{ fontSize:11, fontWeight:700, color:g.hex }}>DEMO — {label}</span>
-          <span style={{ color:C.muted, fontSize:11 }}>{report.description}</span>
+      {isSample&&label&&(
+        <div style={{background:`${g.hex}0D`,borderBottom:`1px solid ${g.hex}18`,padding:"7px 22px",display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:10,fontWeight:700,color:g.hex,letterSpacing:"0.06em",textTransform:"uppercase"}}>DEMO</span>
+          <span style={{color:C.muted,fontSize:11}}>{label} — {description}</span>
         </div>
       )}
-      <div style={{ maxWidth:1040, margin:"0 auto", padding:"24px 18px", display:"flex", flexDirection:"column", gap:14 }}>
-        <div style={{ display:"flex", gap:14, alignItems:"stretch", flexWrap:"wrap" }}>
-          <GradePanel grade={grade} score={score} isSample={isSample} />
-          <StatCards summary={summary} />
+      <div style={{maxWidth:1020,margin:"0 auto",padding:"22px 18px",display:"flex",flexDirection:"column",gap:13}}>
+        <div style={{display:"flex",gap:13,alignItems:"stretch",flexWrap:"wrap"}}>
+          <GradePanel grade={grade} score={score}/>
+          <StatCards summary={summary}/>
         </div>
-        {findings.length===0 ? <CleanAccount label={label}/> : (
-          <>
-            <Breakdown findings={findings}/>
-            <FindingsTable findings={findings}/>
-          </>
-        )}
+        {findings.length===0?<CleanAccount/>:<><Breakdown findings={findings}/><FindingsTable findings={findings}/></>}
       </div>
     </div>
+  );
+}
+
+// ── Scenario card (upload screen) ─────────────────────────────────────────────
+function ScenarioCard({ grade, onLoad }) {
+  const [idx,setIdx]=useState(0);
+  const [hovered,setHovered]=useState(false);
+  const templates=ST[grade];
+  const g=GRADE[grade];
+  const t=templates[idx];
+  const prev=(e)=>{e.stopPropagation();setIdx(i=>(i-1+templates.length)%templates.length);};
+  const next=(e)=>{e.stopPropagation();setIdx(i=>(i+1)%templates.length);};
+  return (
+    <button
+      onMouseEnter={()=>setHovered(true)}
+      onMouseLeave={()=>setHovered(false)}
+      onClick={()=>onLoad({report:buildScenario(grade,t),isSample:true})}
+      style={{display:"flex",alignItems:"center",gap:14,background:"#fff",border:`1px solid ${hovered?g.hex+"40":C.border}`,borderRadius:10,padding:"11px 14px",cursor:"pointer",textAlign:"left",transition:"border-color 0.15s,box-shadow 0.15s",boxShadow:hovered?`0 0 0 3px ${g.hex}10,0 2px 6px rgba(0,0,0,0.06)`:"0 1px 2px rgba(0,0,0,0.04)",width:"100%"}}
+    >
+      <div style={{width:42,height:42,borderRadius:9,flexShrink:0,background:`linear-gradient(135deg,${g.soft},${g.hex}14)`,border:`1px solid ${g.hex}24`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <span style={{fontSize:20,fontWeight:900,color:g.hex,fontFamily:"system-ui",letterSpacing:"-0.03em"}}>{grade}</span>
+      </div>
+      <div style={{flex:1,minWidth:0}}>
+        <p style={{margin:0,fontWeight:700,fontSize:12,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{hovered?t.label:g.label}</p>
+        <p style={{margin:"2px 0 0",fontSize:11,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{hovered?t.description:GRADE_HINT[grade]}</p>
+      </div>
+      {hovered?(
+        <div style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}} onClick={e=>e.stopPropagation()}>
+          <button onClick={prev} style={{width:22,height:22,border:`1px solid ${C.border}`,borderRadius:5,background:C.bg,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:C.sub,flexShrink:0}}><ChevronLeft size={11}/></button>
+          <span style={{fontSize:10,color:C.muted,fontFamily:"ui-monospace,monospace",minWidth:32,textAlign:"center"}}>{idx+1}/{templates.length}</span>
+          <button onClick={next} style={{width:22,height:22,border:`1px solid ${C.border}`,borderRadius:5,background:C.bg,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:C.sub,flexShrink:0}}><ChevronRight size={11}/></button>
+        </div>
+      ):(
+        <span style={{color:C.muted,fontSize:10,flexShrink:0,letterSpacing:"0.02em"}}>10 profiles</span>
+      )}
+    </button>
   );
 }
 
 // ── Guide ─────────────────────────────────────────────────────────────────────
 function Code({ children }) {
-  const [copied, setCopied] = useState(false);
-  const copy = () => { navigator.clipboard.writeText(children.trim()); setCopied(true); setTimeout(()=>setCopied(false),2000); };
+  const [copied,setCopied]=useState(false);
+  const copy=()=>{navigator.clipboard.writeText(children.trim());setCopied(true);setTimeout(()=>setCopied(false),2000);};
   return (
-    <div style={{ position:"relative", margin:"10px 0" }}>
-      <pre style={{ background:"#1E1E2E", color:"#CDD6F4", borderRadius:10, padding:"14px 48px 14px 18px", fontSize:13, fontFamily:"ui-monospace,monospace", lineHeight:1.7, margin:0, overflowX:"auto", whiteSpace:"pre-wrap", wordBreak:"break-all" }}>{children.trim()}</pre>
-      <button onClick={copy} style={{ position:"absolute", top:10, right:10, background:copied?"#22C55E22":"#ffffff18", border:"none", borderRadius:6, color:copied?"#22C55E":"#9CA3AF", padding:"4px 8px", cursor:"pointer", fontSize:11, display:"flex", alignItems:"center", gap:4 }}>
-        {copied?<Check size={12}/>:<Copy size={12}/>}{copied?"Copied":"Copy"}
+    <div style={{position:"relative",margin:"10px 0"}}>
+      <pre style={{background:"#1A1B26",color:"#C0CAF5",borderRadius:9,padding:"13px 46px 13px 17px",fontSize:13,fontFamily:"ui-monospace,monospace",lineHeight:1.7,margin:0,overflowX:"auto",whiteSpace:"pre-wrap",wordBreak:"break-all"}}>{children.trim()}</pre>
+      <button onClick={copy} style={{position:"absolute",top:9,right:9,background:copied?"#22C55E22":"#ffffff16",border:"none",borderRadius:5,color:copied?"#22C55E":"#9CA3AF",padding:"3px 7px",cursor:"pointer",fontSize:11,display:"flex",alignItems:"center",gap:3}}>
+        {copied?<Check size={11}/>:<Copy size={11}/>}{copied?"Copied":"Copy"}
       </button>
     </div>
   );
 }
-function Step({ number, title, children }) {
-  return (
-    <div style={{ display:"flex", gap:18, padding:"24px 0", borderBottom:`1px solid ${C.border}` }}>
-      <div style={{ flexShrink:0 }}><div style={{ width:34, height:34, borderRadius:"50%", background:C.amber, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:14 }}>{number}</div></div>
-      <div style={{ flex:1, minWidth:0 }}>
-        <h3 style={{ margin:"4px 0 12px", fontSize:15, fontWeight:700, color:C.text }}>{title}</h3>
-        {children}
-      </div>
-    </div>
-  );
-}
-function Note({ children, type="info" }) {
-  const s = { info:{ bg:"#EFF6FF",border:"#BFDBFE",color:"#1D4ED8",icon:"ℹ️" }, warning:{ bg:"#FFFBEB",border:"#FDE68A",color:"#B45309",icon:"⚠️" }, tip:{ bg:"#F0FDF4",border:"#BBF7D0",color:"#15803D",icon:"💡" } }[type];
-  return <div style={{ background:s.bg, border:`1px solid ${s.border}`, borderRadius:8, padding:"10px 14px", fontSize:13, color:s.color, lineHeight:1.6, margin:"10px 0", display:"flex", gap:8 }}><span>{s.icon}</span><span>{children}</span></div>;
-}
-function PlatformToggle({ value, onChange }) {
-  return (
-    <div style={{ display:"flex", gap:4, margin:"10px 0 4px" }}>
-      {["Mac / Linux","Windows"].map(p=>(
-        <button key={p} onClick={()=>onChange(p)} style={{ background:value===p?C.amber:C.bg, color:value===p?"#fff":C.sub, border:`1px solid ${value===p?C.amber:C.border}`, borderRadius:6, padding:"4px 12px", cursor:"pointer", fontSize:12, fontWeight:600, transition:"all 0.12s" }}>{p}</button>
-      ))}
-    </div>
-  );
-}
+function Step({number,title,children}){return(<div style={{display:"flex",gap:16,padding:"22px 0",borderBottom:`1px solid ${C.border}`}}><div style={{flexShrink:0}}><div style={{width:32,height:32,borderRadius:"50%",background:C.amber,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:13}}>{number}</div></div><div style={{flex:1,minWidth:0}}><h3 style={{margin:"3px 0 11px",fontSize:15,fontWeight:700,color:C.text}}>{title}</h3>{children}</div></div>);}
+function Note({children,type="info"}){const s={info:{bg:"#EFF6FF",border:"#BFDBFE",color:"#1D4ED8",icon:"ℹ️"},warning:{bg:"#FFFBEB",border:"#FDE68A",color:"#B45309",icon:"⚠️"},tip:{bg:"#F0FDF4",border:"#BBF7D0",color:"#15803D",icon:"💡"}}[type];return <div style={{background:s.bg,border:`1px solid ${s.border}`,borderRadius:7,padding:"9px 13px",fontSize:13,color:s.color,lineHeight:1.6,margin:"9px 0",display:"flex",gap:7}}><span>{s.icon}</span><span>{children}</span></div>;}
+function PlatformToggle({value,onChange}){return(<div style={{display:"flex",gap:4,margin:"9px 0 3px"}}>{["Mac / Linux","Windows"].map(p=><button key={p} onClick={()=>onChange(p)} style={{background:value===p?C.amber:C.bg,color:value===p?"#fff":C.sub,border:`1px solid ${value===p?C.amber:C.border}`,borderRadius:5,padding:"3px 11px",cursor:"pointer",fontSize:12,fontWeight:600,transition:"all 0.12s"}}>{p}</button>)}</div>);}
 
 function Guide({ onUpload }) {
-  const [platform, setPlatform] = useState("Mac / Linux");
-  const isMac = platform==="Mac / Linux";
+  const [platform,setPlatform]=useState("Mac / Linux");
+  const isMac=platform==="Mac / Linux";
   return (
-    <div style={{ minHeight:"100vh", background:C.bg, fontFamily:"system-ui,-apple-system,sans-serif" }}>
-      <div style={{ background:"#fff", borderBottom:`1px solid ${C.border}`, padding:"11px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10, boxShadow:"0 1px 3px rgba(0,0,0,0.06)" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:9 }}><Shield size={15} color={C.amber}/><span style={{ fontWeight:700, fontSize:13, color:C.text }}>AWS IAM Scanner</span></div>
-        <button onClick={onUpload} style={{ display:"flex", alignItems:"center", gap:6, background:C.amber, color:"#fff", border:"none", borderRadius:7, padding:"6px 14px", cursor:"pointer", fontSize:12, fontWeight:600 }}><UploadIcon size={12}/> Upload report</button>
+    <div style={{minHeight:"100vh",background:C.bg,fontFamily:"system-ui,-apple-system,sans-serif"}}>
+      <div style={{background:"#fff",borderBottom:`1px solid ${C.border}`,padding:"11px 22px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:10,boxShadow:"0 1px 3px rgba(0,0,0,0.05)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:9}}><Shield size={14} color={C.amber}/><span style={{fontWeight:700,fontSize:13,color:C.text}}>AWS IAM Scanner</span></div>
+        <button onClick={onUpload} style={{display:"flex",alignItems:"center",gap:6,background:C.amber,color:"#fff",border:"none",borderRadius:6,padding:"5px 13px",cursor:"pointer",fontSize:12,fontWeight:600}}><UploadIcon size={12}/> Upload report</button>
       </div>
-      <div style={{ maxWidth:720, margin:"0 auto", padding:"36px 22px 80px" }}>
-        <h1 style={{ fontSize:26, fontWeight:800, color:C.text, margin:"0 0 10px", letterSpacing:"-0.02em" }}>How to scan your AWS account</h1>
-        <p style={{ color:C.sub, fontSize:14, lineHeight:1.75, margin:"0 0 24px" }}>This guide walks you through scanning your AWS account for security issues — step by step. You don't need to be a developer, but you'll need access to a terminal and an AWS account. The whole process takes about 10 minutes.</p>
-        <div style={{ ...card, padding:"16px 20px", marginBottom:24 }}>
-          <p style={{ color:C.muted, fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase", margin:"0 0 10px" }}>What the scanner checks</p>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px 20px" }}>
+      <div style={{maxWidth:700,margin:"0 auto",padding:"32px 20px 80px"}}>
+        <h1 style={{fontSize:24,fontWeight:800,color:C.text,margin:"0 0 9px",letterSpacing:"-0.02em"}}>How to scan your AWS account</h1>
+        <p style={{color:C.sub,fontSize:14,lineHeight:1.75,margin:"0 0 22px"}}>Step-by-step guide to scanning your account for security issues. Takes about 10 minutes.</p>
+        <div style={{...card,padding:"14px 18px",marginBottom:22}}>
+          <p style={{color:C.muted,fontSize:9,letterSpacing:"0.12em",textTransform:"uppercase",margin:"0 0 9px",fontWeight:700}}>What the scanner checks</p>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"5px 18px"}}>
             {["Overly permissive IAM policies","Users without MFA enabled","Stale or unused access keys","Publicly exposed S3 buckets","Misconfigured trust policies","Roles that should be deleted","Least-privilege policy generator"].map(item=>(
-              <div key={item} style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, color:C.sub }}><span style={{ color:"#22C55E", fontWeight:700 }}>✓</span>{item}</div>
+              <div key={item} style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:C.sub}}><span style={{color:"#22C55E",fontWeight:700,flexShrink:0}}>✓</span>{item}</div>
             ))}
           </div>
         </div>
         <Step number={1} title="Open your terminal">
-          <p style={{ color:C.sub, fontSize:14, lineHeight:1.7, margin:"0 0 10px" }}>The terminal is a text-based way to control your computer. You'll just be copying and pasting commands into it.</p>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+          <p style={{color:C.sub,fontSize:13,lineHeight:1.7,margin:"0 0 10px"}}>The terminal is a text-based way to control your computer.</p>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
             {[{os:"Mac",how:"Press ⌘ + Space, type Terminal, press Enter"},{os:"Windows",how:"Press the Windows key, type PowerShell, press Enter"}].map(({os,how})=>(
-              <div key={os} style={{ background:C.bg, borderRadius:8, padding:"12px 14px", border:`1px solid ${C.border}` }}><p style={{ fontWeight:700, fontSize:13, color:C.text, margin:"0 0 4px" }}>{os}</p><p style={{ color:C.sub, fontSize:12, margin:0 }}>{how}</p></div>
+              <div key={os} style={{background:C.bg,borderRadius:7,padding:"10px 13px",border:`1px solid ${C.border}`}}><p style={{fontWeight:700,fontSize:12,color:C.text,margin:"0 0 3px"}}>{os}</p><p style={{color:C.sub,fontSize:11,margin:0}}>{how}</p></div>
             ))}
           </div>
         </Step>
         <Step number={2} title="Check that Python is installed">
-          <p style={{ color:C.sub, fontSize:14, lineHeight:1.7, margin:"0 0 10px" }}>Paste this into your terminal and hit Enter:</p>
+          <p style={{color:C.sub,fontSize:13,lineHeight:1.7,margin:"0 0 9px"}}>Paste this into your terminal and hit Enter:</p>
           <Code>python3 --version</Code>
-          <p style={{ color:C.sub, fontSize:14, lineHeight:1.7, margin:"10px 0" }}>You should see something like <code style={{ background:C.bg, padding:"1px 6px", borderRadius:4, fontFamily:"monospace", fontSize:13 }}>Python 3.11.0</code>. If not, download Python from <a href="https://python.org" target="_blank" rel="noopener noreferrer" style={{ color:C.amber }}>python.org</a>.</p>
-          <Note type="tip">Python 3.9 or newer will work.</Note>
+          <p style={{color:C.sub,fontSize:13,lineHeight:1.7,margin:"9px 0"}}>You should see something like <code style={{background:C.bg,padding:"1px 5px",borderRadius:4,fontFamily:"monospace",fontSize:12}}>Python 3.11.0</code>. If not, download from <a href="https://python.org" target="_blank" rel="noopener noreferrer" style={{color:C.amber}}>python.org</a>.</p>
+          <Note type="tip">Python 3.9 or newer works.</Note>
         </Step>
         <Step number={3} title="Download the scanner">
-          <p style={{ color:C.sub, fontSize:14, lineHeight:1.7, margin:"0 0 10px" }}>If you have Git installed:</p>
-          <Code>{`git clone https://github.com/agandbhir123/aws-iam-scanner.git\ncd aws-iam-scanner`}</Code>
-          <p style={{ color:C.sub, fontSize:14, lineHeight:1.7, margin:"12px 0 10px" }}>Or <a href="https://github.com/agandbhir123/aws-iam-scanner" target="_blank" rel="noopener noreferrer" style={{ color:C.amber }}>download the ZIP from GitHub</a>, extract it, then:</p>
+          <p style={{color:C.sub,fontSize:13,lineHeight:1.7,margin:"0 0 9px"}}>If you have Git installed:</p>
+          <Code>{`git clone https://github.com/agandbhir123/aws-iam-scanner.git
+cd aws-iam-scanner`}</Code>
+          <p style={{color:C.sub,fontSize:13,lineHeight:1.7,margin:"11px 0 9px"}}>Or <a href="https://github.com/agandbhir123/aws-iam-scanner" target="_blank" rel="noopener noreferrer" style={{color:C.amber}}>download the ZIP from GitHub</a>, extract it, then:</p>
           <PlatformToggle value={platform} onChange={setPlatform}/>
           <Code>{isMac?"cd ~/Downloads/aws-iam-scanner":"cd C:\\Users\\YourName\\Downloads\\aws-iam-scanner"}</Code>
         </Step>
         <Step number={4} title="Install dependencies">
-          <p style={{ color:C.sub, fontSize:14, lineHeight:1.7, margin:"0 0 6px" }}>Run these three commands in order:</p>
+          <p style={{color:C.sub,fontSize:13,lineHeight:1.7,margin:"0 0 5px"}}>Run these three commands in order:</p>
           <PlatformToggle value={platform} onChange={setPlatform}/>
-          <Code>{isMac?`python3 -m venv venv\nsource venv/bin/activate\npip install -r requirements.txt`:`python3 -m venv venv\nvenv\\\\Scripts\\\\activate\npip install -r requirements.txt`}</Code>
-          <Note type="info">Wait until you see <code style={{ fontFamily:"monospace" }}>Successfully installed</code> before moving on.</Note>
+          <Code>{isMac?`python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt`:`python3 -m venv venv
+venv\\Scripts\\activate
+pip install -r requirements.txt`}</Code>
+          <Note type="info">Wait for <code style={{fontFamily:"monospace"}}>Successfully installed</code> before moving on.</Note>
         </Step>
         <Step number={5} title="Get your AWS credentials">
-          <p style={{ color:C.sub, fontSize:14, lineHeight:1.7, margin:"0 0 12px" }}>AWS credentials let programs read your account. The scanner only needs <strong>read access</strong> — it cannot change anything.</p>
-          {[{n:"1",t:"Log into AWS",d:"Go to console.aws.amazon.com"},{n:"2",t:"Go to IAM",d:'Search for "IAM" in the top search bar'},{n:"3",t:"Create a user",d:'Users → Create user. Name it "scanner-user"'},{n:"4",t:"Attach a policy",d:'Choose ReadOnlyAccess (AWS managed - job function). Hit Next → Create user'},{n:"5",t:"Create an access key",d:"Security credentials tab → Create access key → CLI use case → Create"},{n:"6",t:"Copy your credentials",d:"Copy the Access key ID and Secret — you won't see the secret again"}].map(({n,t,d})=>(
-            <div key={n} style={{ display:"flex", gap:12, marginBottom:10 }}>
-              <span style={{ width:22, height:22, borderRadius:"50%", background:C.bg, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700, color:C.sub, flexShrink:0, marginTop:1 }}>{n}</span>
-              <div><span style={{ fontWeight:600, fontSize:13, color:C.text }}>{t} — </span><span style={{ fontSize:13, color:C.sub }}>{d}</span></div>
+          <p style={{color:C.sub,fontSize:13,lineHeight:1.7,margin:"0 0 11px"}}>AWS credentials let programs read your account. The scanner only needs <strong>read access</strong> — it cannot change anything.</p>
+          {[{n:"1",t:"Log into AWS",d:"Go to console.aws.amazon.com"},{n:"2",t:"Go to IAM",d:'Search for "IAM" in the top search bar'},{n:"3",t:"Create a user",d:'Users → Create user. Name it "scanner-user"'},{n:"4",t:"Attach ReadOnlyAccess",d:"Choose ReadOnlyAccess (AWS managed). Hit Next → Create user"},{n:"5",t:"Create an access key",d:"Security credentials tab → Create access key → CLI → Create"},{n:"6",t:"Copy your credentials",d:"Copy the Access key ID and Secret — you won't see the secret again"}].map(({n,t,d})=>(
+            <div key={n} style={{display:"flex",gap:11,marginBottom:9}}>
+              <span style={{width:20,height:20,borderRadius:"50%",background:C.bg,border:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:C.sub,flexShrink:0,marginTop:1}}>{n}</span>
+              <div><span style={{fontWeight:600,fontSize:12,color:C.text}}>{t} — </span><span style={{fontSize:12,color:C.sub}}>{d}</span></div>
             </div>
           ))}
           <PlatformToggle value={platform} onChange={setPlatform}/>
-          <Code>{isMac?`export AWS_ACCESS_KEY_ID=AKIA...your key...\nexport AWS_SECRET_ACCESS_KEY=...your secret...\nexport AWS_DEFAULT_REGION=us-east-1`:`$env:AWS_ACCESS_KEY_ID="AKIA...your key..."\n$env:AWS_SECRET_ACCESS_KEY="...your secret..."\n$env:AWS_DEFAULT_REGION="us-east-1"`}</Code>
+          <Code>{isMac?`export AWS_ACCESS_KEY_ID=AKIA...your key...
+export AWS_SECRET_ACCESS_KEY=...your secret...
+export AWS_DEFAULT_REGION=us-east-1`:`$env:AWS_ACCESS_KEY_ID="AKIA...your key..."
+$env:AWS_SECRET_ACCESS_KEY="...your secret..."
+$env:AWS_DEFAULT_REGION="us-east-1"`}</Code>
           <Note type="warning">Never share credentials. Don't paste them into chat apps or websites.</Note>
         </Step>
         <Step number={6} title="Run the scanner">
           <Code>python -m scanner</Code>
-          <p style={{ color:C.sub, fontSize:14, lineHeight:1.7, margin:"10px 0" }}>Takes 1–2 minutes. When done, a file called <code style={{ background:C.bg, padding:"1px 6px", borderRadius:4, fontFamily:"monospace", fontSize:13 }}>iam_scan_report.json</code> will appear in the project folder.</p>
+          <p style={{color:C.sub,fontSize:13,lineHeight:1.7,margin:"9px 0"}}>Takes 1–2 minutes. When done, <code style={{background:C.bg,padding:"1px 5px",borderRadius:4,fontFamily:"monospace",fontSize:12}}>iam_scan_report.json</code> will appear in the project folder.</p>
         </Step>
         <Step number={7} title="Upload your results here">
-          <p style={{ color:C.sub, fontSize:14, lineHeight:1.7, margin:"0 0 14px" }}>Come back to this page and upload <code style={{ background:C.bg, padding:"1px 6px", borderRadius:4, fontFamily:"monospace", fontSize:13 }}>iam_scan_report.json</code>. You'll see your security grade, a breakdown of every finding, and fix instructions.</p>
-          <button onClick={onUpload} style={{ display:"inline-flex", alignItems:"center", gap:8, background:C.amber, color:"#fff", border:"none", borderRadius:8, padding:"10px 22px", fontSize:14, fontWeight:700, cursor:"pointer", boxShadow:"0 1px 3px rgba(0,0,0,0.15)" }}><UploadIcon size={14}/> Upload report</button>
+          <p style={{color:C.sub,fontSize:13,lineHeight:1.7,margin:"0 0 13px"}}>Come back to this page and upload <code style={{background:C.bg,padding:"1px 5px",borderRadius:4,fontFamily:"monospace",fontSize:12}}>iam_scan_report.json</code> to see your security grade, findings, and fix instructions.</p>
+          <button onClick={onUpload} style={{display:"inline-flex",alignItems:"center",gap:7,background:C.amber,color:"#fff",border:"none",borderRadius:7,padding:"9px 20px",fontSize:13,fontWeight:700,cursor:"pointer",boxShadow:"0 1px 3px rgba(0,0,0,0.15)"}}><UploadIcon size={13}/> Upload report</button>
         </Step>
-        <div style={{ textAlign:"center", marginTop:36 }}><p style={{ color:C.muted, fontSize:12 }}>Questions? Open an issue on <a href="https://github.com/agandbhir123/aws-iam-scanner" target="_blank" rel="noopener noreferrer" style={{ color:C.amber }}>GitHub</a></p></div>
+        <div style={{textAlign:"center",marginTop:32}}><p style={{color:C.muted,fontSize:12}}>Questions? Open an issue on <a href="https://github.com/agandbhir123/aws-iam-scanner" target="_blank" rel="noopener noreferrer" style={{color:C.amber}}>GitHub</a></p></div>
       </div>
     </div>
   );
@@ -543,133 +545,130 @@ function Guide({ onUpload }) {
 
 // ── Upload ────────────────────────────────────────────────────────────────────
 function Upload({ onLoad, onGuide }) {
-  const [drag, setDrag] = useState(false);
-  const [err, setErr] = useState(null);
-  const [leftPct, setLeftPct] = useState(34);
-  const isDragging = useRef(false);
-  const containerRef = useRef();
-  const fileRef = useRef();
+  const [drag,setDrag]=useState(false);
+  const [err,setErr]=useState(null);
+  const [leftW,setLeftW]=useState(24);
+  const [hidden,setHidden]=useState(false);
+  const [divHov,setDivHov]=useState(false);
+  const isDragging=useRef(false);
+  const containerRef=useRef();
+  const fileRef=useRef();
 
-  const handle = useCallback(file => {
-    if (!file) return;
-    const r = new FileReader();
-    r.onload = e => {
-      try {
-        const json = JSON.parse(e.target.result);
-        if (!json.findings||!json.grade) throw new Error();
-        onLoad({ report:json, isSample:false });
-      } catch { setErr("Invalid file — upload the iam_scan_report.json from the scanner CLI."); }
-    };
+  const handle=useCallback(file=>{
+    if(!file)return;
+    const r=new FileReader();
+    r.onload=e=>{try{const json=JSON.parse(e.target.result);if(!json.findings||!json.grade)throw new Error();onLoad({report:json,isSample:false});}catch{setErr("Invalid file — upload the iam_scan_report.json from the scanner CLI.");}};
     r.readAsText(file);
-  }, [onLoad]);
+  },[onLoad]);
 
-  const onDividerDown = useCallback(e => {
-    isDragging.current = true; e.preventDefault();
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    const onMove = e2 => {
-      if (!isDragging.current||!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const pct = ((e2.clientX-rect.left)/rect.width)*100;
-      setLeftPct(Math.min(Math.max(pct,0),34));
+  const onDivDown=useCallback(e=>{
+    if(hidden)return;
+    isDragging.current=true;e.preventDefault();
+    document.body.style.cursor="col-resize";document.body.style.userSelect="none";
+    const onMove=e2=>{
+      if(!isDragging.current||!containerRef.current)return;
+      const rect=containerRef.current.getBoundingClientRect();
+      const pct=((e2.clientX-rect.left)/rect.width)*100;
+      setLeftW(Math.min(Math.max(pct,18),42));
     };
-    const onUp = () => {
-      isDragging.current = false;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      document.removeEventListener("mousemove",onMove);
-      document.removeEventListener("mouseup",onUp);
-    };
-    document.addEventListener("mousemove",onMove);
-    document.addEventListener("mouseup",onUp);
-  }, []);
+    const onUp=()=>{isDragging.current=false;document.body.style.cursor="";document.body.style.userSelect="";document.removeEventListener("mousemove",onMove);document.removeEventListener("mouseup",onUp);};
+    document.addEventListener("mousemove",onMove);document.addEventListener("mouseup",onUp);
+  },[hidden]);
 
-  const checks = ["Overly permissive IAM policies","Users without MFA enabled","Stale or unused access keys","Publicly exposed S3 buckets","Misconfigured trust policies","Roles that should be deleted","Least-privilege policy generator"];
+  const checks=["Overly permissive IAM policies","Users without MFA enabled","Stale or unused access keys","Publicly exposed S3 buckets","Misconfigured trust policies","Roles that should be deleted","Least-privilege policy generator"];
 
   return (
-    <div style={{ minHeight:"100vh", background:C.bg, color:C.text, fontFamily:"system-ui,-apple-system,sans-serif", display:"flex", flexDirection:"column" }}>
-      <div style={{ height:3, background:C.amber, flexShrink:0 }} />
-      <div style={{ background:"#fff", borderBottom:`1px solid ${C.border}`, padding:"11px 24px", display:"flex", alignItems:"center", gap:9, flexShrink:0 }}>
-        <Shield size={15} color={C.amber}/><span style={{ fontWeight:700, fontSize:13, color:C.text }}>AWS IAM Scanner</span>
+    <div style={{minHeight:"100vh",background:C.bg,color:C.text,fontFamily:"system-ui,-apple-system,sans-serif",display:"flex",flexDirection:"column"}}>
+      <div style={{height:3,background:C.amber,flexShrink:0}}/>
+      <div style={{background:"#fff",borderBottom:`1px solid ${C.border}`,padding:"11px 22px",display:"flex",alignItems:"center",gap:9,flexShrink:0,boxShadow:"0 1px 3px rgba(0,0,0,0.05)"}}>
+        <Shield size={14} color={C.amber}/><span style={{fontWeight:700,fontSize:13,color:C.text}}>AWS IAM Scanner</span>
       </div>
-      <div ref={containerRef} style={{ flex:1, display:"flex", minHeight:0 }}>
-        {leftPct>1 && (
-          <div style={{ flex:`0 0 ${leftPct}%`, background:"#fff", overflow:"auto", padding:"52px 36px", display:"flex", flexDirection:"column", justifyContent:"center" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:18 }}>
-              <Shield size={28} color={C.amber}/>
+      <div ref={containerRef} style={{flex:1,display:"flex",minHeight:0}}>
+
+        {/* Left panel */}
+        <div style={{flexShrink:0,width:hidden?0:`${leftW}%`,minWidth:0,overflow:"hidden",transition:"width 0.28s cubic-bezier(0.4,0,0.2,1)",background:"#fff",borderRight:hidden?"none":`1px solid ${C.border}`}}>
+          <div style={{padding:"48px 32px",display:"flex",flexDirection:"column",justifyContent:"center",height:"100%",boxSizing:"border-box",minWidth:220}}>
+            <div style={{display:"flex",alignItems:"center",gap:11,marginBottom:16}}>
+              <Shield size={26} color={C.amber}/>
               <div>
-                <h1 style={{ fontSize:22, fontWeight:800, letterSpacing:"-0.02em", margin:0, color:C.text, lineHeight:1.1 }}>AWS IAM Scanner</h1>
-                <p style={{ color:C.muted, fontSize:12, margin:"3px 0 0" }}>Security audit for your AWS account</p>
+                <h1 style={{fontSize:20,fontWeight:800,letterSpacing:"-0.02em",margin:0,color:C.text,lineHeight:1.1}}>AWS IAM Scanner</h1>
+                <p style={{color:C.muted,fontSize:11,margin:"3px 0 0"}}>Security audit for your AWS account</p>
               </div>
             </div>
-            <p style={{ color:C.sub, fontSize:13, lineHeight:1.75, margin:"0 0 28px", maxWidth:360 }}>Run the scanner locally against your AWS account, then upload the report here to see your security grade, a breakdown of every finding, and step-by-step fix instructions.</p>
-            <div style={{ marginBottom:28 }}>
-              <p style={{ color:C.muted, fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase", margin:"0 0 12px", fontWeight:700 }}>What gets checked</p>
-              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            <p style={{color:C.sub,fontSize:13,lineHeight:1.7,margin:"0 0 24px",maxWidth:320}}>Run the scanner against your AWS account and upload the report to see your security grade and step-by-step fix instructions.</p>
+            <div style={{marginBottom:24}}>
+              <p style={{color:C.muted,fontSize:9,letterSpacing:"0.12em",textTransform:"uppercase",margin:"0 0 10px",fontWeight:700}}>What gets checked</p>
+              <div style={{display:"flex",flexDirection:"column",gap:7}}>
                 {checks.map(item=>(
-                  <div key={item} style={{ display:"flex", alignItems:"center", gap:10 }}>
-                    <span style={{ width:18, height:18, borderRadius:"50%", background:"#F0FDF4", border:"1px solid #BBF7D0", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, fontSize:10, color:"#16A34A", fontWeight:700 }}>✓</span>
-                    <span style={{ fontSize:13, color:C.sub }}>{item}</span>
+                  <div key={item} style={{display:"flex",alignItems:"center",gap:9}}>
+                    <span style={{width:16,height:16,borderRadius:"50%",background:"#F0FDF4",border:"1px solid #BBF7D0",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:9,color:"#16A34A",fontWeight:700}}>✓</span>
+                    <span style={{fontSize:12,color:C.sub}}>{item}</span>
                   </div>
                 ))}
               </div>
             </div>
-            <a href="https://github.com/agandbhir123/aws-iam-scanner" target="_blank" rel="noopener noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:6, color:C.muted, fontSize:12, textDecoration:"none" }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+            <a href="https://github.com/agandbhir123/aws-iam-scanner" target="_blank" rel="noopener noreferrer" style={{display:"inline-flex",alignItems:"center",gap:6,color:C.muted,fontSize:11,textDecoration:"none"}}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
               View on GitHub
             </a>
           </div>
-        )}
-        <div onMouseDown={onDividerDown} style={{ width:5, flexShrink:0, background:C.border, cursor:"col-resize", display:"flex", alignItems:"center", justifyContent:"center", transition:"background 0.15s" }} onMouseEnter={e=>e.currentTarget.style.background=C.amber} onMouseLeave={e=>e.currentTarget.style.background=C.border}>
-          <div style={{ display:"flex", flexDirection:"column", gap:3, pointerEvents:"none" }}>
-            {[0,1,2].map(i=><div key={i} style={{ width:3, height:3, borderRadius:"50%", background:C.muted }}/>)}
-          </div>
         </div>
-        <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"48px 36px", overflow:"auto" }}>
-          <div style={{ display:"flex", background:"#fff", border:`1px solid ${C.border}`, borderRadius:10, padding:4, gap:4, marginBottom:24, boxShadow:"0 1px 3px rgba(0,0,0,0.05)" }}>
+
+        {/* Divider */}
+        <div
+          onMouseDown={onDivDown}
+          onMouseEnter={()=>setDivHov(true)}
+          onMouseLeave={()=>setDivHov(false)}
+          style={{width:hidden?12:5,flexShrink:0,background:divHov?`${C.amber}30`:C.border,cursor:hidden?"pointer":"col-resize",position:"relative",transition:"background 0.15s,width 0.28s cubic-bezier(0.4,0,0.2,1)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2}}
+          onClick={hidden?()=>setHidden(false):undefined}
+        >
+          {divHov&&!hidden&&(
+            <button
+              onClick={e=>{e.stopPropagation();setHidden(true);}}
+              style={{position:"absolute",width:20,height:20,borderRadius:"50%",background:C.amber,color:"#fff",border:"none",cursor:"pointer",fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 4px rgba(0,0,0,0.18)",zIndex:3,pointerEvents:"all"}}
+            >‹</button>
+          )}
+          {hidden&&(
+            <span style={{fontSize:12,color:C.muted,pointerEvents:"none"}}>›</span>
+          )}
+          {!hidden&&!divHov&&(
+            <div style={{display:"flex",flexDirection:"column",gap:3,pointerEvents:"none"}}>
+              {[0,1,2].map(i=><div key={i} style={{width:3,height:3,borderRadius:"50%",background:C.muted}}/>)}
+            </div>
+          )}
+        </div>
+
+        {/* Right panel */}
+        <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"44px 36px",overflow:"auto"}}>
+          <div style={{display:"flex",background:"#fff",border:`1px solid ${C.border}`,borderRadius:9,padding:3,gap:3,marginBottom:22,boxShadow:"0 1px 3px rgba(0,0,0,0.05)"}}>
             {[{key:"upload",label:"Upload report",Icon:UploadIcon},{key:"guide",label:"How to use",Icon:BookOpen}].map(({key,label,Icon})=>(
-              <button key={key} onClick={()=>key==="guide"&&onGuide()} style={{ display:"flex", alignItems:"center", gap:6, background:key==="upload"?C.amber:"transparent", color:key==="upload"?"#fff":C.muted, border:"none", borderRadius:7, padding:"8px 18px", cursor:"pointer", fontSize:13, fontWeight:600, transition:"all 0.15s" }}>
-                <Icon size={13}/>{label}
-              </button>
+              <button key={key} onClick={()=>key==="guide"&&onGuide()} style={{display:"flex",alignItems:"center",gap:6,background:key==="upload"?C.amber:"transparent",color:key==="upload"?"#fff":C.muted,border:"none",borderRadius:6,padding:"7px 16px",cursor:"pointer",fontSize:12,fontWeight:600,transition:"all 0.15s"}}><Icon size={12}/>{label}</button>
             ))}
           </div>
-          <div onDragOver={e=>{e.preventDefault();setDrag(true);}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);handle(e.dataTransfer.files[0]);}} onClick={()=>fileRef.current?.click()} style={{ width:"100%", maxWidth:420, border:`2px dashed ${drag?C.amber:C.border}`, borderRadius:16, background:drag?"#FFFBEB":"#fff", padding:"48px 28px", display:"flex", flexDirection:"column", alignItems:"center", gap:12, cursor:"pointer", transition:"all 0.15s", boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
-            <div style={{ width:52, height:52, borderRadius:12, background:drag?"#FEF3C7":C.bg, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}>
-              <FileJson size={26} color={drag?C.amber:C.muted}/>
+
+          <div onDragOver={e=>{e.preventDefault();setDrag(true);}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);handle(e.dataTransfer.files[0]);}} onClick={()=>fileRef.current?.click()} style={{width:"100%",maxWidth:400,border:`1.5px dashed ${drag?C.amber:C.border}`,borderRadius:14,background:drag?"#FFFBEB":"#fff",padding:"42px 26px",display:"flex",flexDirection:"column",alignItems:"center",gap:11,cursor:"pointer",transition:"all 0.15s",boxShadow:"0 1px 3px rgba(0,0,0,0.05)"}}>
+            <div style={{width:48,height:48,borderRadius:11,background:drag?"#FEF3C7":C.bg,display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.15s"}}><FileJson size={24} color={drag?C.amber:C.muted}/></div>
+            <div style={{textAlign:"center"}}>
+              <p style={{fontWeight:700,fontSize:14,margin:"0 0 5px",color:C.text}}>Drop your scan report here</p>
+              <p style={{color:C.muted,fontSize:12,margin:0}}>Upload <code style={{fontFamily:"monospace",color:C.amber,fontSize:11,background:"#FEF3C7",padding:"1px 4px",borderRadius:3}}>iam_scan_report.json</code></p>
             </div>
-            <div style={{ textAlign:"center" }}>
-              <p style={{ fontWeight:700, fontSize:15, margin:"0 0 6px", color:C.text }}>Drop your scan report here</p>
-              <p style={{ color:C.muted, fontSize:13, margin:0 }}>Upload <code style={{ fontFamily:"monospace", color:C.amber, fontSize:12, background:"#FEF3C7", padding:"1px 5px", borderRadius:4 }}>iam_scan_report.json</code></p>
-            </div>
-            <span style={{ color:C.muted, fontSize:12, marginTop:4 }}>or click to browse files</span>
-            <input ref={fileRef} type="file" accept=".json" style={{ display:"none" }} onChange={e=>handle(e.target.files[0])}/>
+            <span style={{color:C.muted,fontSize:11,marginTop:2}}>or click to browse files</span>
+            <input ref={fileRef} type="file" accept=".json" style={{display:"none"}} onChange={e=>handle(e.target.files[0])}/>
           </div>
-          {err && <p style={{ color:"#991B1B", fontSize:12, marginTop:10 }}>{err}</p>}
-          <div style={{ display:"flex", alignItems:"center", gap:14, margin:"22px 0", width:"100%", maxWidth:420 }}>
-            <div style={{ flex:1, height:1, background:C.border }}/>
-            <span style={{ color:C.muted, fontSize:11 }}>or explore a demo</span>
-            <div style={{ flex:1, height:1, background:C.border }}/>
+
+          {err&&<p style={{color:"#991B1B",fontSize:11,marginTop:10}}>{err}</p>}
+
+          <div style={{display:"flex",alignItems:"center",gap:13,margin:"20px 0",width:"100%",maxWidth:400}}>
+            <div style={{flex:1,height:1,background:C.border}}/>
+            <span style={{color:C.muted,fontSize:10,letterSpacing:"0.04em"}}>or explore a demo</span>
+            <div style={{flex:1,height:1,background:C.border}}/>
           </div>
-          <div style={{ width:"100%", maxWidth:420 }}>
-            <p style={{ color:C.muted, fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase", margin:"0 0 10px", fontWeight:700 }}>Pick a scenario</p>
-            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-              {["A","B","C","D","F"].map(grade => {
-                const g = GRADE[grade];
-                return (
-                  <button key={grade} onClick={()=>onLoad({ report:getRandomScenario(grade), isSample:true })} style={{ display:"flex", alignItems:"center", gap:14, background:"#fff", border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 16px", cursor:"pointer", textAlign:"left", transition:"border-color 0.15s, box-shadow 0.15s", boxShadow:"0 1px 3px rgba(0,0,0,0.05)" }} onMouseEnter={e=>{e.currentTarget.style.borderColor=g.hex;e.currentTarget.style.boxShadow=`0 0 0 3px ${g.hex}12`;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.boxShadow="0 1px 3px rgba(0,0,0,0.05)";}}>
-                    <div style={{ width:44, height:44, borderRadius:10, flexShrink:0, background:`linear-gradient(135deg,${g.soft},${g.hex}18)`, border:`1px solid ${g.hex}28`, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                      <span style={{ fontSize:22, fontWeight:900, color:g.hex, fontFamily:"system-ui", letterSpacing:"-0.03em" }}>{grade}</span>
-                    </div>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <p style={{ margin:0, fontWeight:700, fontSize:13, color:C.text }}>{g.label}</p>
-                      <p style={{ margin:"2px 0 0", fontSize:11, color:C.muted }}>{GRADE_FINDING_HINT[grade]} · 10 account profiles</p>
-                    </div>
-                    <RefreshCw size={13} color={C.muted} style={{ flexShrink:0 }}/>
-                  </button>
-                );
-              })}
+
+          <div style={{width:"100%",maxWidth:400}}>
+            <p style={{color:C.muted,fontSize:9,letterSpacing:"0.12em",textTransform:"uppercase",margin:"0 0 8px",fontWeight:700}}>Pick a scenario</p>
+            <div style={{display:"flex",flexDirection:"column",gap:7}}>
+              {["A","B","C","D","F"].map(grade=><ScenarioCard key={grade} grade={grade} onLoad={onLoad}/>)}
             </div>
-            <p style={{ color:C.muted, fontSize:10, marginTop:10, textAlign:"center" }}>Each click loads a random real-world profile from 10 per grade</p>
           </div>
         </div>
       </div>
@@ -679,28 +678,13 @@ function Upload({ onLoad, onGuide }) {
 
 // ── Root ──────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [state, setState] = useState(null);
-  const [showGuide, setShowGuide] = useState(false);
-
-  const goBack = useCallback(() => { setState(null); setShowGuide(false); }, []);
-
-  useEffect(() => {
-    const onPop = () => goBack();
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
-  }, [goBack]);
-
-  const navigate = useCallback(newState => {
-    window.history.pushState({},"");
-    setState(newState);
-    setShowGuide(false);
-  }, []);
-
-  const switchScenario = useCallback(grade => {
-    navigate({ report:getRandomScenario(grade), isSample:true });
-  }, [navigate]);
-
-  if (showGuide) return <Guide onUpload={()=>{ setShowGuide(false); window.history.pushState({},""); }}/>;
-  if (!state) return <Upload onLoad={navigate} onGuide={()=>{ setShowGuide(true); window.history.pushState({},""); }}/>;
-  return <Dashboard report={state.report} isSample={state.isSample} onReset={goBack} onSwitch={switchScenario}/>;
+  const [state,setState]=useState(null);
+  const [showGuide,setShowGuide]=useState(false);
+  const goBack=useCallback(()=>{setState(null);setShowGuide(false);},[]);
+  useEffect(()=>{const onPop=()=>goBack();window.addEventListener("popstate",onPop);return()=>window.removeEventListener("popstate",onPop);},[goBack]);
+  const navigate=useCallback(newState=>{window.history.pushState({},"");setState(newState);setShowGuide(false);},[]);
+  const switchScenario=useCallback(grade=>{navigate({report:getRandomScenario(grade),isSample:true});},[navigate]);
+  if(showGuide)return<Guide onUpload={()=>{setShowGuide(false);window.history.pushState({},"");}}/>;
+  if(!state)return<Upload onLoad={navigate} onGuide={()=>{setShowGuide(true);window.history.pushState({},"");}}/>;
+  return<Dashboard report={state.report} isSample={state.isSample} onReset={goBack} onSwitch={switchScenario}/>;
 }
