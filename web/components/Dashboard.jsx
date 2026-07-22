@@ -547,7 +547,7 @@ function Upload({ onLoad, onGuide }) {
       if(!isDragging.current||!containerRef.current)return;
       const rect=containerRef.current.getBoundingClientRect();
       const pct=((e2.clientX-rect.left)/rect.width)*100;
-      setLeftW(Math.min(Math.max(pct,18),42));
+      setLeftW(Math.min(Math.max(pct,18),24));
     };
     const onUp=()=>{isDragging.current=false;document.body.style.cursor="";document.body.style.userSelect="";document.removeEventListener("mousemove",onMove);document.removeEventListener("mouseup",onUp);};
     document.addEventListener("mousemove",onMove);document.addEventListener("mouseup",onUp);
