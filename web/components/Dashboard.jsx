@@ -4,6 +4,13 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { Shield, FileJson, ChevronDown, ChevronUp, Copy, Check, BookOpen, Upload as UploadIcon, ArrowLeft, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 
+// ── Finding helper ────────────────────────────────────────────────────────────
+const A = "ACCOUNT";
+const f = (check, severity, resource_type, resource_name, arn, issue, description, remediation) => ({
+  check, severity, resource_type, resource_name,
+  resource_arn: arn, issues:[issue], description, remediation,
+});
+
 // ── Finding pool ──────────────────────────────────────────────────────────────
 const FP = {
   // HIGH — MFA
