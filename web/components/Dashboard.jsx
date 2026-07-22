@@ -504,8 +504,7 @@ function Guide({ onUpload }) {
         </Step>
         <Step number={3} title="Download the scanner">
           <p style={{ color:C.sub, fontSize:14, lineHeight:1.7, margin:"0 0 10px" }}>If you have Git installed:</p>
-          <Code>git clone https://github.com/agandbhir123/aws-iam-scanner.git{"
-"}cd aws-iam-scanner</Code>
+          <Code>{`git clone https://github.com/agandbhir123/aws-iam-scanner.git\ncd aws-iam-scanner`}</Code>
           <p style={{ color:C.sub, fontSize:14, lineHeight:1.7, margin:"12px 0 10px" }}>Or <a href="https://github.com/agandbhir123/aws-iam-scanner" target="_blank" rel="noopener noreferrer" style={{ color:C.amber }}>download the ZIP from GitHub</a>, extract it, then:</p>
           <PlatformToggle value={platform} onChange={setPlatform}/>
           <Code>{isMac?"cd ~/Downloads/aws-iam-scanner":"cd C:\\Users\\YourName\\Downloads\\aws-iam-scanner"}</Code>
@@ -513,7 +512,7 @@ function Guide({ onUpload }) {
         <Step number={4} title="Install dependencies">
           <p style={{ color:C.sub, fontSize:14, lineHeight:1.7, margin:"0 0 6px" }}>Run these three commands in order:</p>
           <PlatformToggle value={platform} onChange={setPlatform}/>
-          <Code>{isMac?"python3 -m venv venv\nsource venv/bin/activate\npip install -r requirements.txt":"python3 -m venv venv\nvenv\\Scripts\\activate\npip install -r requirements.txt"}</Code>
+          <Code>{isMac?`python3 -m venv venv\nsource venv/bin/activate\npip install -r requirements.txt`:`python3 -m venv venv\nvenv\\\\Scripts\\\\activate\npip install -r requirements.txt`}</Code>
           <Note type="info">Wait until you see <code style={{ fontFamily:"monospace" }}>Successfully installed</code> before moving on.</Note>
         </Step>
         <Step number={5} title="Get your AWS credentials">
@@ -525,7 +524,7 @@ function Guide({ onUpload }) {
             </div>
           ))}
           <PlatformToggle value={platform} onChange={setPlatform}/>
-          <Code>{isMac?"export AWS_ACCESS_KEY_ID=AKIA...your key...\nexport AWS_SECRET_ACCESS_KEY=...your secret...\nexport AWS_DEFAULT_REGION=us-east-1":"$env:AWS_ACCESS_KEY_ID=\"AKIA...your key...\"\n$env:AWS_SECRET_ACCESS_KEY=\"...your secret...\"\n$env:AWS_DEFAULT_REGION=\"us-east-1\""}</Code>
+          <Code>{isMac?`export AWS_ACCESS_KEY_ID=AKIA...your key...\nexport AWS_SECRET_ACCESS_KEY=...your secret...\nexport AWS_DEFAULT_REGION=us-east-1`:`$env:AWS_ACCESS_KEY_ID="AKIA...your key..."\n$env:AWS_SECRET_ACCESS_KEY="...your secret..."\n$env:AWS_DEFAULT_REGION="us-east-1"`}</Code>
           <Note type="warning">Never share credentials. Don't paste them into chat apps or websites.</Note>
         </Step>
         <Step number={6} title="Run the scanner">
